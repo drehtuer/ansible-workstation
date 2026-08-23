@@ -7,7 +7,13 @@
     "context": ".."
   },
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    // Node is here for Antora, which builds the documentation site.
+    // It is a documentation dependency only -- nothing provisioned by the
+    // playbooks needs it.
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
   },
   "mounts": [
     // Claude Code state and credentials, shared with the host.  Read-write:
