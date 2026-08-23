@@ -1,0 +1,77 @@
+---
+# Publishes the Antora site to GitHub Pages.  The build itself is
+# `invoke site`, the same command a developer runs locally; only the upload
+# is CI-specific.
+#
+# The site is versioned: main is rebuilt on every push so the documentation
+# never lags the branch, and publishing a release adds that tag as a version
+# of its own and moves the start page to it.  Nothing is overwritten -- the
+# older releases stay reachable from the version selector.
+#
+# Requires Pages to be enabled for the repository with source "GitHub
+# Actions" (Settings -> Pages).
+name: pages
+
+"on":
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a running deployment; let it finish and queue the next one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Always build from main, whichever event triggered this: a release
+      # checks out its tag, and the site would then publish that tag's
+      # content as the main version.  fetch-depth 0 brings the tags along,
+      # which is where the older versions come from.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      # kramdoc converts the Markdown pages during the site build.
+      - run: gem install kramdown-asciidoc -v 2.1.1
+
+      - run: uv run invoke site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

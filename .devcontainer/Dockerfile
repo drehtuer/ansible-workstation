@@ -1,16 +1,22 @@
 # Authoring and test environment only.
 #
 # A container cannot provision the WSL host it runs in.  This image exists for
-# the tooling that is NOT pip-installable -- asciidoctor (Ruby) and the GitHub
-# CLI -- plus a docker socket for the containerised converge tests.
+# the tooling that is NOT pip-installable -- asciidoctor (Ruby), Node.js for
+# the Antora site build (a devcontainer feature) and the GitHub CLI -- plus a
+# docker socket for the containerised converge tests.
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# asciidoctor renders the documentation; pinned so output does not drift.
+# Two Ruby tools.  asciidoctor renders a single .adoc for a quick look and
+# backs the VS Code preview; the published site is built by Antora
+# (`invoke site`), not by this gem.  kramdoc (kramdown-asciidoc) converts
+# Markdown pages during that site build.  Both pinned so output does not
+# drift.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ruby-full \
     && gem install --no-document asciidoctor -v 2.0.23 \
+    && gem install --no-document kramdown-asciidoc -v 2.1.1 \
     && rm -rf /var/lib/apt/lists/*
 
 # GitHub CLI from the official apt repository.

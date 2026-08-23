@@ -6,9 +6,10 @@
 :repo-url: https://github.com/drehtuer/ansible-workstation
 
 Guidance for Claude Code and other AI assistants working in
-`ansible-workstation`. Read together with link:../README.adoc[README.adoc],
-which describes *what* the project does and where it currently stands; this file
-describes *how* to change it.
+`ansible-workstation`. Read together with
+{repo-url}/blob/main/README.adoc[README.adoc], which describes *what* the
+project does and where it currently stands; this file describes *how* to change
+it.
 
 == What this repository is
 
@@ -75,6 +76,18 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 
 | `scripts/install-uv.sh` is standalone and shared by host + devcontainer
 | README, _Bootstrapping_
+
+| Antora builds the documentation site; `README.adoc` and `CLAUDE.adoc` are
+  lent to it by an extension, never copied
+| README, _Documentation_
+
+| `kramdoc` renders the Markdown that has to stay Markdown; AsciiDoc remains
+  the format to write in
+| README, _Markdown pages_
+
+| The site is versioned from git: `main` plus one version per `v*` tag, and
+  the start page lands on the newest release
+| README, _Versions, and where the start page lands_
 |===
 
 == Non-negotiable rules
@@ -125,12 +138,62 @@ private as a way to relax any rule below.
 * All documentation is AsciiDoc (`.adoc`). Do not add Markdown documentation
   files. The single exception is `.claude/CLAUDE.md`, a stub that exists only
   because the Claude Code loader recognises `.md`.
+* The site *can* render Markdown — `kramdoc` converts it during the build,
+  see README, _Markdown pages_. That exists for files which have no choice
+  about their format, such as GitHub's issue templates. It is not permission
+  to write new documentation in Markdown.
 * Update `README.adoc` in the same change that alters layout, commands, or the
   variable model. Documentation drift counts as an incomplete change.
 * When a roadmap item is finished, move it out of *Roadmap* and into *Current
   state*. When something is decided against, record it under *Deferred / decided
   against* with the reason — that list exists so the same idea is not proposed
   twice.
+
+=== The documentation site
+
+Antora renders the site; `uv run invoke site` builds it. See README,
+_Documentation_.
+
+* A new page is two files, not one: the page under
+  `docs/modules/ROOT/pages/`, and its `xref:` entry in
+  `docs/modules/ROOT/nav.adoc`. A page missing from the nav is built but
+  unreachable.
+* A Markdown page is converted before Antora classifies it, so refer to it by
+  its AsciiDoc name everywhere — `notes.md` is `+xref:notes.adoc[]+` in the
+  nav and in every link. Never write a generated `.adoc` next to the source;
+  the conversion is in memory and must stay that way.
+* The extensions are ordered in `antora-playbook.yml`: pages are lent first,
+  converted second. Keep that order, or a lent Markdown file ships raw.
+* Do not add a `version` key to `docs/antora.yml`. The descriptor wins over
+  the playbook, and every release tag carries a copy of that file, so a
+  version named there would be stamped on all of them. Versions belong to the
+  content sources in `antora-playbook.yml`.
+* A released version is built from its tag, not from the working directory.
+  Anything an extension reads from outside the component must come from the
+  ref — `repository_pages.js` uses `git show` for exactly that. Reading from
+  disk instead silently republishes today's text as an old release's
+  documentation.
+* Publishing happens on pushes to `main` and on published releases. Old
+  versions are never rebuilt or overwritten; do not add a step that deletes
+  or rewrites them.
+* `README.adoc` and `.claude/CLAUDE.adoc` stay where they are. They reach the
+  site through `docs/extensions/repository_pages.js`, which is configured in
+  `antora-playbook.yml`. Never copy either file into `docs/`.
+* Link between pages with `+xref:<page>.adoc[]+`, never with a relative path
+  such as `+link:../README.adoc[]+`. A relative path escapes the component and
+  breaks on the published site while still looking right on GitHub.
+  Note the `+` passthrough: a macro inside plain backticks is still expanded,
+  so an example link without it becomes a real -- and broken -- link.
+* `invoke site` fails on a broken `xref:` or an unresolved `include::`
+  (`failure_level: warn` in the playbook). Do not lower that to silence a
+  warning — fix the link.
+* Antora and its extension are the only JavaScript here, and `ruff` does not
+  cover them. Keep the extension small, `'use strict'`, two-space indent, and
+  under the same 80-column cap as everything else.
+* Node.js is a *documentation* dependency. Nothing the playbooks install may
+  depend on it, and no role may require `npm`.
+* After changing `package.json`, commit the regenerated `package-lock.json`
+  with it — same rule as `uv.lock`.
 
 === Scope
 
@@ -268,6 +331,13 @@ uv run invoke syntax
 
 and, when a role's behaviour changed, `uv run invoke converge` for both Ubuntu
 targets — the second pass must report `changed=0`.
+
+When any `.adoc` file changed, add:
+
+[source,bash]
+----
+uv run invoke site
+----
 
 If a check cannot be run, say so explicitly rather than implying it passed.
 

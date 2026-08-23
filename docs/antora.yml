@@ -1,0 +1,13 @@
+---
+# Antora component descriptor.  The site has exactly one component: this
+# repository documents itself.
+#
+# There is deliberately NO version key here.  Antora lets the descriptor win
+# over the playbook, so a version named here would be stamped on every ref,
+# including release tags.  Leaving it out lets antora-playbook.yml name the
+# version per content source: the worktree becomes `main`, a tag `vX.Y.Z`
+# becomes `X.Y.Z`.
+name: workstation
+title: ansible-workstation
+nav:
+  - modules/ROOT/nav.adoc

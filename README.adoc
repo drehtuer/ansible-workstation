@@ -6,6 +6,7 @@
 :experimental:
 :source-highlighter: rouge
 :repo-url: https://github.com/drehtuer/ansible-workstation
+:pages-url: https://drehtuer.github.io/ansible-workstation
 
 Ansible playbooks that turn a freshly installed WSL distribution into a
 ready-to-use development workstation: the user's tools, dotfiles and settings,
@@ -64,13 +65,19 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 | GitHub Actions: lint job, then a converge matrix over both Ubuntu releases.
   Green.
 
+| Documentation site
+| Antora, pinned in `package.json`. `invoke site` renders `README.adoc`,
+  `CLAUDE.adoc` and everything under `docs/` into `build/site/`; Markdown
+  pages go through `kramdoc` on the way. Versioned: `main` plus one version
+  per release tag. CI publishes it to GitHub Pages.
+
 | Devcontainer
-| `asciidoctor`, `gh`, `uv`, docker-outside-of-docker; `~/.claude` and `~/.ssh`
-  bind-mounted from the host.
+| `asciidoctor`, `gh`, `uv`, Node.js, docker-outside-of-docker; `~/.claude` and
+  `~/.ssh` bind-mounted from the host.
 
 | Dependency lock
 | `uv.lock` + `requirements.txt` committed. 35 packages, `ansible-core` 2.19.12,
-  resolved against CPython 3.12.
+  resolved against CPython 3.12. `package-lock.json` pins Antora separately.
 
 | Remote
 | `origin` → {repo-url}[drehtuer/ansible-workstation], public.
@@ -81,6 +88,16 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 * `yamllint` passes.
 * `ruff check` and `ruff format --check` pass.
 * `scripts/install-uv.sh` provisions a clean Ubuntu 24.04 container end to end.
+* `invoke site` builds the documentation site without a warning, from a normal
+  checkout and from the detached, shallow checkout CI produces.
+* Markdown reaches the site: a `.md` page inside the component and a `.md`
+  file lent from the repository root both render, and a missing `kramdoc`
+  fails the build with a message naming the gem.
+* The version model, against a scratch repository tagged `v0.1.0` and
+  `v0.2.0`: each version shows the documentation of *its own* commit, the
+  start page lands on the newest release, older releases stay in the version
+  selector, and an untagged repository still builds — as this one does, with
+  `main` as its only version.
 * `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
   reports `changed=0`, so the roles are observably idempotent.
 * Python syntax, shell syntax, YAML/JSON parsing, and the vault guard's own
@@ -206,7 +223,9 @@ devcontainer image build. Installing `uv` the same way everywhere is the point.
 
 `scripts/bootstrap.sh`::
 Calls `install-uv.sh`, resolves `uv.lock` if it is missing, runs `uv sync`, and
-installs the Galaxy requirements.
+installs the Galaxy requirements. If `npm` is present it also runs `npm ci`,
+which is how the devcontainer ends up with Antora; on a bare WSL distro that
+step is skipped rather than failing.
 
 [source,bash]
 ----
@@ -233,7 +252,12 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 Optional, and *not* the primary environment. It exists for tooling that is not
 Python, plus a consistent editor setup:
 
-* `asciidoctor` (Ruby) for rendering the documentation
+* Node.js, for the Antora documentation site (see <<documentation>>). Antora
+  itself is installed by `postCreateCommand`, from `package-lock.json`
+* `kramdoc` (Ruby, from `kramdown-asciidoc`) for the Markdown pages of that
+  site
+* `asciidoctor` (Ruby) for previewing a single file, and for the VS Code
+  AsciiDoc extension
 * `gh`, the GitHub CLI, from the official apt repository
 * `uv`, installed by the same `scripts/install-uv.sh` the host uses
 * a Docker socket (docker-outside-of-docker) for the containerised converge
@@ -292,32 +316,42 @@ throwaway converge tests only.
 ├── uv.lock                    <6>
 ├── requirements.txt           <7>
 ├── requirements.yml           <8>
+├── antora-playbook.yml        <9>
+├── package.json               <10>
+├── package-lock.json
 ├── ansible.cfg
 ├── inventory/
-│   ├── hosts.yml              <9>
+│   ├── hosts.yml              <11>
 │   ├── group_vars/all/
 │   │   ├── vars.yml
-│   │   ├── vault.yml          <10>
+│   │   ├── vault.yml          <12>
 │   │   └── vault.yml.example
 │   └── host_vars/
 ├── playbooks/
-│   ├── site.yml               <11>
-│   └── windows.yml            <12>
+│   ├── site.yml               <13>
+│   └── windows.yml            <14>
 ├── roles/
-│   ├── wsl/                   <13>
+│   ├── wsl/                   <15>
 │   ├── base/
 │   ├── shell/
 │   ├── git/
 │   ├── editor/
 │   ├── languages/
-│   ├── dotfiles/              <14>
-│   └── windows/               <15>
+│   ├── dotfiles/              <16>
+│   └── windows/               <17>
 ├── scripts/
-│   ├── install-uv.sh          <16>
+│   ├── install-uv.sh          <18>
 │   ├── bootstrap.sh
-│   └── check_vault_encrypted.py   <17>
-├── tests/                     <18>
-└── docs/
+│   └── check_vault_encrypted.py   <19>
+├── tests/                     <20>
+└── docs/                      <21>
+    ├── antora.yml
+    ├── extensions/
+    │   ├── repository_pages.js
+    │   └── markdown_pages.js
+    └── modules/ROOT/
+        ├── nav.adoc
+        └── pages/
 ----
 <1> Working agreements for Claude Code / AI assistants.
 <2> One-line stub that includes CLAUDE.adoc (Claude Code only auto-loads `.md`).
@@ -329,16 +363,20 @@ throwaway converge tests only.
 <7> Exported from `uv.lock` for `uv`-less bootstrap and for the converge
     container.
 <8> Ansible Galaxy collections and roles — unrelated to Python deps.
-<9> Always `localhost`, `connection: local`.
-<10> Encrypted. Created from the example by `invoke vault-init`.
-<11> Entry point for the Linux/WSL side.
-<12> Windows-side configuration, opt-in.
-<13> `/etc/wsl.conf`, interop, systemd, Windows path handling.
-<14> Plain Ansible templates — no external dotfile manager, see <<dotfiles>>.
-<15> Windows tasks driven through WSL interop.
-<16> Standalone `uv` installer, shared by host and devcontainer.
-<17> Pre-commit guard against plaintext vaults and stray password files.
-<18> Converge fixtures and dummy vars for CI.
+<9> Antora site definition, see <<documentation>>.
+<10> Pins Antora. It is a documentation dependency; nothing the playbooks
+     install needs Node.
+<11> Always `localhost`, `connection: local`.
+<12> Encrypted. Created from the example by `invoke vault-init`.
+<13> Entry point for the Linux/WSL side.
+<14> Windows-side configuration, opt-in.
+<15> `/etc/wsl.conf`, interop, systemd, Windows path handling.
+<16> Plain Ansible templates — no external dotfile manager, see <<dotfiles>>.
+<17> Windows tasks driven through WSL interop.
+<18> Standalone `uv` installer, shared by host and devcontainer.
+<19> Pre-commit guard against plaintext vaults and stray password files.
+<20> Converge fixtures and dummy vars for CI.
+<21> The Antora component: one module, `ROOT`, unversioned.
 
 == Quick start
 
@@ -596,14 +634,14 @@ CI runs *those same tasks*. There is no CI-only command.
 | `invoke lock`
 | Refresh `uv.lock` and re-export `requirements.txt`
 
-| `invoke docs`
-| Render every `.adoc` file into `build/docs/`
+| `invoke site`
+| Build the documentation site into `build/site/`
 
 | `invoke vault-init` / `invoke vault-edit`
 | Create or edit the vault; never decrypts to disk
 
 | `invoke all`
-| `lint`, `syntax`, then converge on every supported Ubuntu release
+| `lint`, `syntax`, `site`, then converge on every supported Ubuntu release
 |===
 
 Invoke was chosen over `make` because these tasks are Python: they inspect
@@ -632,8 +670,8 @@ Change a value there only together with the tool that owns it; an
 `.editorconfig` that disagrees with the linters is worse than none, because it
 makes the editor and CI fight over every save.
 
-Two file types are exempt, because their content is generated and their wrapping
-is not ours to choose: `uv.lock` and `requirements.txt`.
+Three files are exempt, because their content is generated and their wrapping is
+not ours to choose: `uv.lock`, `requirements.txt` and `package-lock.json`.
 
 Most editors need a plugin to honour it. The devcontainer installs the VS Code
 extension.
@@ -664,8 +702,18 @@ GitHub Actions runs a lint job and then a converge matrix over Ubuntu 24.04 and
 - run: uv run invoke setup
 - run: uv run invoke lint
 - run: uv run invoke syntax
+- run: uv run invoke site
 - run: uv run invoke converge --ubuntu ${{ matrix.ubuntu }}
 ----
+
+A second workflow, `.github/workflows/pages.yml`, runs the *same*
+`invoke site` and uploads `build/site/` to GitHub Pages — on pushes to `main`
+and on published releases. Only the upload is CI-specific; the build is not.
+
+It always checks out `main` with the full history, whatever triggered it. A
+release event checks out its tag by default, and building from there would
+publish that tag's content as the `main` version; the full history is what
+makes the release tags visible as versions in the first place.
 
 CI has no vault password. Tasks that consume secrets carry the `secrets` tag and
 are excluded there; converge runs instead use `tests/vars.ci.yml`, a file of
@@ -686,17 +734,183 @@ placing a real vault password in CI would contradict <<vault>>.
   second agent inside WSL.
 * Clipboard — `clip.exe` / `win32yank` for editor integration.
 
+[#documentation]
 == Documentation
 
-All documentation in this repository is written in AsciiDoc (`.adoc`).
+All documentation in this repository is written in AsciiDoc (`.adoc`), and
+link:https://antora.org/[Antora] renders it into a static site.
 
 [source,bash]
 ----
-uv run invoke docs
+uv run invoke site          # build into build/site/
+uv run invoke site --fetch  # ... and refresh the cached UI bundle
 ----
 
-Output lands in `build/docs/`. `asciidoctor` is Ruby, not a Python package — it
-is preinstalled in the devcontainer.
+Open `build/site/index.html`, or let CI publish it to
+{pages-url}[GitHub Pages] — on every push to `main`, and again whenever a
+release is published. See <<versions>> for what each of those two events
+does to the site.
+
+=== Layout
+
+Antora expects a *component*: a directory with a descriptor and modules.
+There is exactly one component and one module; the versions come from git,
+see <<versions>>.
+
+[source]
+----
+antora-playbook.yml              <1>
+docs/
+├── antora.yml                   <2>
+├── extensions/
+│   ├── repository_pages.js      <3>
+│   ├── markdown_pages.js        <4>
+│   └── prerelease_versions.js   <5>
+└── modules/ROOT/
+    ├── nav.adoc                 <6>
+    └── pages/                   <7>
+----
+<1> The site: title, URL, content sources, UI bundle, output directory.
+<2> The component: name `workstation`. It deliberately declares no version;
+    see <<versions>>.
+<3> Lends in files that live outside the component, see <<lent-pages>>.
+<4> Converts Markdown pages, see <<markdown-pages>>.
+<5> Decides which version the start page lands on, see <<versions>>.
+<6> The navigation tree. A page that is not listed here is still built, but
+    unreachable.
+<7> New pages go here, one file per page.
+
+Adding a page therefore means two files: the page under
+`docs/modules/ROOT/pages/`, and an `xref:` line in `nav.adoc`.
+
+[#lent-pages]
+=== README.adoc and CLAUDE.adoc are lent to the site, not copied
+
+`README.adoc` has to stay at the repository root — it is what GitHub shows —
+and `.claude/CLAUDE.adoc` has to stay where the assistants look for it. Neither
+can move under `docs/modules/ROOT/pages/`, and copying them there would create
+a second source of truth that silently drifts.
+
+`docs/extensions/repository_pages.js` resolves this. It is an Antora
+extension that reads both files at build time and hands them to Antora as
+though they had always been pages of the `ROOT` module:
+
+[cols="2,1,2", options="header"]
+|===
+| Source file | Page | On the site
+
+| `README.adoc`
+| `index.adoc`
+| the home page
+
+| `.claude/CLAUDE.adoc`
+| `working_agreements.adoc`
+| Working agreements
+|===
+
+The mapping lives in `antora-playbook.yml`, so lending another file is a
+two-line change. The extension also rewrites the `Edit this Page` link back to
+the real location of the file, which is why it points at `/README.adoc` rather
+than at a path under `docs/` that does not exist.
+
+[#versions]
+=== Versions, and where the start page lands
+
+The site is versioned, so a release keeps the documentation it shipped with
+instead of being overwritten by the next one. Two content sources feed it:
+
+[cols="1,1,2", options="header"]
+|===
+| Source | Version | Built from
+
+| the worktree
+| `main`
+| what is checked out, uncommitted edits included
+
+| tags matching `v*`
+| `1.2.3` for `v1.2.3`
+| the commit that tag points at
+|===
+
+Every version gets its own URL — `/workstation/main/`, `/workstation/1.2.3/`
+— and the UI grows a version selector linking them. Nothing is overwritten:
+publishing 1.3.0 leaves 1.2.3 exactly where it was.
+
+The start page lands on the *newest release*, not on `main`. Antora sends it
+to the first version that is not a prerelease, so
+`docs/extensions/prerelease_versions.js` marks `main` as one. Until the first
+tag exists there is nothing else to land on and Antora falls back to `main`,
+which is what this repository does today.
+
+[NOTE]
+====
+`docs/antora.yml` declares no `version`, on purpose. Antora lets the
+descriptor win over the playbook, so a version named there would be stamped
+on every ref — including release tags, which all carry a copy of that file.
+Leaving it out is what lets `antora-playbook.yml` name the version per
+source.
+====
+
+A version is built from the ref, not from the working directory: the lending
+extension reads `README.adoc` out of the object database with `git show` when
+it is building a tag. Reading it off disk instead would publish today's
+README as the documentation of a two-year-old release.
+
+[#markdown-pages]
+=== Markdown pages
+
+AsciiDoc is the format for documentation written *here* — that rule has not
+changed. But some files can only be Markdown: GitHub recognises its issue and
+pull-request templates in no other format, and a file that arrives from
+somewhere else rarely arrives as AsciiDoc.
+
+Antora reads AsciiDoc and silently drops everything else it finds in a
+`pages/` directory. `docs/extensions/markdown_pages.js` closes that gap by
+piping every Markdown page through
+link:https://github.com/asciidoctor/kramdown-asciidoc[`kramdoc`], the CLI of
+the `kramdown-asciidoc` gem:
+
+[cols="1,1", options="header"]
+|===
+| Written | Becomes
+
+| `docs/modules/ROOT/pages/notes.md`
+| the page `notes.adoc`
+
+| a `.md` file lent through `repository_pages.js`
+| the same, converted after it is lent
+|===
+
+Three consequences worth knowing:
+
+. *Cross-reference the `.adoc` name.* The conversion happens before Antora
+  classifies anything, so a Markdown page is already an AsciiDoc page when
+  `nav.adoc` and every `xref:` see it: `+xref:notes.adoc[]+`, never
+  `+xref:notes.md[]+`.
+. *Nothing is written back to the worktree.* The conversion happens in
+  memory; no generated `.adoc` appears beside the source, so there is nothing
+  to gitignore and nothing to commit by accident.
+. *`kramdoc` has to be installed* — it is in the devcontainer and in both
+  workflows. Without it the build fails and says which gem is missing, but
+  only when a Markdown page actually exists.
+
+Input is parsed as GitHub-flavoured Markdown with `--wrap=preserve`, so
+80-column source survives the round trip. The `Edit this Page` link keeps
+pointing at the `.md` file, because that is still the file to edit.
+
+=== Why Antora and not plain asciidoctor
+
+`asciidoctor` renders one file at a time and knows nothing about the others: no
+navigation, no cross-page links that are validated, no shared UI. Antora adds
+exactly those. The build fails on a broken `xref:` or an unresolved
+`include::`, which is what makes `invoke site` worth running in CI at all.
+
+The cost is Node.js — a second package manager, kept to a documentation
+dependency and pinned in `package-lock.json`. Nothing the playbooks install
+needs it, and provisioning never invokes it.
+
+NOTE: The Ruby `asciidoctor` in the devcontainer stays for quick single-file
+previews. It never produces the published site; `invoke site` does.
 
 == License
 

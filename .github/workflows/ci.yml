@@ -31,6 +31,37 @@ jobs:
       - run: uv run invoke lint
       - run: uv run invoke syntax
 
+  site:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      # Full history, so the release tags are present and this builds every
+      # version the pages workflow would publish.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      # kramdoc converts the Markdown pages during the site build.
+      - run: gem install kramdown-asciidoc -v 2.1.1
+
+      # Builds the Antora site.  A broken xref fails here, before the
+      # pages workflow tries to publish it.
+      - run: uv run invoke site
+
   converge:
     runs-on: ubuntu-latest
     needs: lint

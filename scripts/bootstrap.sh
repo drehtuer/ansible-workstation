@@ -31,6 +31,16 @@ uv sync
 log "Installing Ansible Galaxy requirements"
 uv run ansible-galaxy install -r requirements.yml
 
+# The documentation toolchain.  Antora is installed from npm, which
+# only the devcontainer has -- a bare WSL distro neither has node nor needs
+# it, so this is skipped there instead of failing the bootstrap.
+if command -v npm >/dev/null 2>&1; then
+    log "Installing Antora from package-lock.json"
+    npm ci
+else
+    log "npm not found - skipping Antora; 'invoke site' needs it"
+fi
+
 cat <<'EOF'
 
 Done.  Next steps:

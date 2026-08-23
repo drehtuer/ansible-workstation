@@ -5,6 +5,14 @@ exclude_paths:
   - .venv/
   - .ansible/
   - .github/
+  - node_modules/
+  - build/
+
+# Despite the name, antora-playbook.yml is not an Ansible playbook -- it
+# configures the documentation site.  Without this, ansible-lint tries to
+# parse it as a list of plays and fails.
+kinds:
+  - yaml: "antora-playbook.yml"
 
 warn_list:
   - experimental

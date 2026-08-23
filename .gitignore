@@ -15,5 +15,9 @@ vault_pass*
 *.decrypted.yml
 .env
 
+# Node (Antora); package-lock.json is committed, node_modules is not
+node_modules/
+
 # Build output
 build/
+.cache/

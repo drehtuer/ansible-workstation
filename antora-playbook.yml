@@ -1,0 +1,70 @@
+---
+# Antora site build.  `uv run invoke site` is the entry point; this file only
+# describes what the site is made of.
+site:
+  title: ansible-workstation
+  url: https://drehtuer.github.io/ansible-workstation
+  start_page: workstation::index.adoc
+
+content:
+  sources:
+    # The local worktree, not a remote clone: uncommitted documentation is
+    # part of the build, so a broken page fails before it is pushed.  This is
+    # the `main` version of the site -- the state of the branch.
+    - url: .
+      start_path: docs
+      branches: HEAD
+      version: main
+
+    # Every release tag is published as a version of its own, so the
+    # documentation of an old release stays reachable after main moves on.
+    # v1.2.3 becomes the version 1.2.3.  A repository without tags simply
+    # builds one version.
+    - url: .
+      start_path: docs
+      # branches is emptied explicitly: without it this source would also
+      # pick up the default branch and collect it a second time.
+      branches: []
+      tags: ["v*"]
+      version:
+        "v(*)": "$1"
+
+ui:
+  bundle:
+    # Antora's default UI.  The backslash escapes the line break, so this
+    # folds back into one URL without a space -- see .editorconfig.
+    url: "https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/\
+      HEAD/raw/build/ui-bundle.zip?job=bundle-stable"
+    snapshot: true
+
+output:
+  dir: ./build/site
+
+runtime:
+  cache_dir: ./.cache/antora
+  log:
+    # A broken xref or an unresolved include is a documentation defect, so
+    # it fails the build instead of scrolling past in CI.
+    failure_level: warn
+
+# Extensions run in the order they are listed, so pages are lent to the
+# component first and converted second -- that way a lent Markdown file is
+# rendered like any other.
+antora:
+  extensions:
+    # README.adoc and CLAUDE.adoc stay where they belong for GitHub; the
+    # extension lends them to the component instead of copying them.
+    - require: ./docs/extensions/repository_pages.js
+      pages:
+        - source: README.adoc
+          target: index.adoc
+        - source: .claude/CLAUDE.adoc
+          target: working_agreements.adoc
+
+    # Markdown pages, via the kramdoc CLI of the kramdown-asciidoc gem.
+    - require: ./docs/extensions/markdown_pages.js
+
+    # main is the unreleased state, so the start page lands on the newest
+    # release instead -- until there is one.
+    - require: ./docs/extensions/prerelease_versions.js
+      versions: [main]
