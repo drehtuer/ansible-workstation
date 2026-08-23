@@ -25,7 +25,8 @@ jobs:
         with:
           enable-cache: true
 
-      # Exactly the tasks a developer runs locally -- there is no CI-only command.
+      # Exactly the tasks a developer runs locally -- there is no
+      # CI-only command.
       - run: uv run invoke setup
       - run: uv run invoke lint
       - run: uv run invoke syntax

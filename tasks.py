@@ -27,7 +27,11 @@ def vault_args() -> str:
     CI work on a machine that holds no secrets.  The password itself is never
     read here -- only the path is handed to ansible.
     """
-    return f"--vault-password-file {VAULT_PASSWORD_FILE}" if VAULT_PASSWORD_FILE.is_file() else ""
+    return (
+        f"--vault-password-file {VAULT_PASSWORD_FILE}"
+        if VAULT_PASSWORD_FILE.is_file()
+        else ""
+    )
 
 
 def ansible(cmd: str) -> str:
@@ -47,7 +51,11 @@ def setup(c: Context) -> None:
 def lock(c: Context) -> None:
     """Refresh uv.lock and the exported requirements.txt."""
     c.run("uv lock", pty=True)
-    c.run("uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt", pty=True)
+    c.run(
+        "uv export --no-dev --no-hashes --format requirements-txt "
+        "-o requirements.txt",
+        pty=True,
+    )
 
 
 @task
@@ -76,17 +84,30 @@ def syntax(c: Context) -> None:
 def check(c: Context, tags: str = "") -> None:
     """Dry-run the site playbook against this machine."""
     limit = f" --tags {tags}" if tags else ""
-    c.run(ansible(f"ansible-playbook playbooks/site.yml --check --diff{limit}"), pty=True)
+    c.run(
+        ansible(f"ansible-playbook playbooks/site.yml --check --diff{limit}"),
+        pty=True,
+    )
 
 
 @task(help={"tags": "Comma separated list of tags to limit the run to."})
 def apply(c: Context, tags: str = "") -> None:
     """Provision this machine for real."""
     limit = f" --tags {tags}" if tags else ""
-    c.run(ansible(f"ansible-playbook playbooks/site.yml --ask-become-pass{limit}"), pty=True)
+    c.run(
+        ansible(
+            f"ansible-playbook playbooks/site.yml --ask-become-pass{limit}"
+        ),
+        pty=True,
+    )
 
 
-@task(help={"ubuntu": f"Ubuntu release to converge against ({' or '.join(UBUNTU_TARGETS)})."})
+@task(
+    help={
+        "ubuntu": "Ubuntu release to converge against "
+        f"({' or '.join(UBUNTU_TARGETS)})."
+    }
+)
 def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     """Converge twice in a throwaway container; the second run must be a no-op.
 
@@ -95,7 +116,10 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     so the same code paths still execute.
     """
     if ubuntu not in UBUNTU_TARGETS:
-        raise Exit(f"unsupported target {ubuntu!r}, expected one of {UBUNTU_TARGETS}", code=2)
+        raise Exit(
+            f"unsupported target {ubuntu!r}, expected one of {UBUNTU_TARGETS}",
+            code=2,
+        )
     if shutil.which("docker") is None:
         raise Exit("docker is required for converge tests", code=2)
 
@@ -103,7 +127,8 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     # script through `bash -c` invites quoting bugs, and a real file can be
     # syntax-checked and read on its own.
     c.run(
-        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} bash /repo/tests/converge.sh",
+        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} "
+        "bash /repo/tests/converge.sh",
         pty=True,
     )
 
@@ -112,10 +137,15 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
 def docs(c: Context) -> None:
     """Render every AsciiDoc file to HTML."""
     if shutil.which("asciidoctor") is None:
-        raise Exit("asciidoctor is not installed (available in the devcontainer)", code=2)
+        raise Exit(
+            "asciidoctor is not installed (available in the devcontainer)",
+            code=2,
+        )
     outdir = ROOT / "build" / "docs"
     outdir.mkdir(parents=True, exist_ok=True)
-    for adoc in sorted(ROOT.glob("*.adoc")) + sorted((ROOT / "docs").glob("*.adoc")):
+    for adoc in sorted(ROOT.glob("*.adoc")) + sorted(
+        (ROOT / "docs").glob("*.adoc")
+    ):
         c.run(f"asciidoctor -D {outdir} {adoc}", pty=True)
 
 
@@ -138,8 +168,15 @@ def vault_edit(c: Context) -> None:
     """Edit the vault in place; it is never decrypted to disk."""
     password_file = require_password_file()
     if not VAULT_FILE.exists():
-        raise Exit(f"{VAULT_FILE} does not exist -- run `invoke vault-init` first", code=2)
-    c.run(f"ansible-vault edit --vault-password-file {password_file} {VAULT_FILE}", pty=True)
+        raise Exit(
+            f"{VAULT_FILE} does not exist -- run `invoke vault-init` first",
+            code=2,
+        )
+    c.run(
+        f"ansible-vault edit --vault-password-file {password_file} "
+        f"{VAULT_FILE}",
+        pty=True,
+    )
 
 
 @task
@@ -152,7 +189,11 @@ def vault_init(c: Context) -> None:
     if VAULT_FILE.exists():
         raise Exit(f"{VAULT_FILE} already exists", code=2)
     VAULT_FILE.write_text(VAULT_FILE.with_suffix(".yml.example").read_text())
-    c.run(f"ansible-vault encrypt --vault-password-file {password_file} {VAULT_FILE}", pty=True)
+    c.run(
+        f"ansible-vault encrypt --vault-password-file {password_file} "
+        f"{VAULT_FILE}",
+        pty=True,
+    )
 
 
 @task(name="all", pre=[lint, syntax])

@@ -25,7 +25,8 @@ if [[ "$(id -u)" -eq 0 ]]; then
     : "${UV_INSTALL_DIR:=/usr/local/bin}"
 else
     if ! command -v sudo >/dev/null 2>&1; then
-        warn "not root and sudo is unavailable; system packages cannot be installed"
+        warn "not root and sudo is unavailable;" \
+            "system packages cannot be installed"
     fi
     SUDO="sudo"
     : "${UV_INSTALL_DIR:=$HOME/.local/bin}"
@@ -42,10 +43,10 @@ APT_PACKAGES=(
 )
 
 install_prerequisites() {
-    local missing=()
+    local missing=() status
     for pkg in "${APT_PACKAGES[@]}"; do
-        dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "^install ok installed$" \
-            || missing+=("$pkg")
+        status="$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null || true)"
+        [[ "$status" == "install ok installed" ]] || missing+=("$pkg")
     done
 
     if [[ ${#missing[@]} -eq 0 ]]; then
@@ -55,7 +56,8 @@ install_prerequisites() {
 
     log "Installing system prerequisites: ${missing[*]}"
     DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends "${missing[@]}"
+    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y \
+        --no-install-recommends "${missing[@]}"
 }
 
 install_uv() {
@@ -70,7 +72,9 @@ install_uv() {
     # The installer writes only into UV_INSTALL_DIR and does not edit shell
     # profiles when UV_NO_MODIFY_PATH is set -- PATH stays under our control.
     local installer="https://astral.sh/uv/install.sh"
-    [[ -n "${UV_VERSION:-}" ]] && installer="https://astral.sh/uv/${UV_VERSION}/install.sh"
+    if [[ -n "${UV_VERSION:-}" ]]; then
+        installer="https://astral.sh/uv/${UV_VERSION}/install.sh"
+    fi
 
     curl -LsSf "$installer" \
         | env UV_INSTALL_DIR="$UV_INSTALL_DIR" UV_NO_MODIFY_PATH=1 sh
@@ -83,7 +87,8 @@ ensure_on_path() {
 
     export PATH="$UV_INSTALL_DIR:$PATH"
     if ! command -v uv >/dev/null 2>&1; then
-        warn "uv is not on PATH after installation; expected it in ${UV_INSTALL_DIR}"
+        warn "uv is not on PATH after installation;" \
+            "expected it in ${UV_INSTALL_DIR}"
         return 1
     fi
 

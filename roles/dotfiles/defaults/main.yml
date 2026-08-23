@@ -7,7 +7,8 @@ dotfiles_directories:
   - .local/bin
 
 # Static files copied verbatim from roles/dotfiles/files/.
-# Each entry: {src: <name under files/>, dest: <path relative to home>, mode: "0644"}
+# Each entry: {src: <name under files/>,
+#              dest: <path relative to home>, mode: "0644"}
 dotfiles_files: []
 
 # Templated files from roles/dotfiles/templates/, same fields.

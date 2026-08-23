@@ -1,5 +1,6 @@
 ---
-windows_powershell: /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+windows_powershell: >-
+  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 
 # Files copied into the Windows user profile.
 # Each entry: {src: <path under files/>, dest: <path relative to %USERPROFILE%>}

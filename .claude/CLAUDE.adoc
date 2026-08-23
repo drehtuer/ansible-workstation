@@ -3,6 +3,7 @@
 :toclevels: 2
 :sectnums:
 :source-highlighter: rouge
+:repo-url: https://github.com/drehtuer/ansible-workstation
 
 Guidance for Claude Code and other AI assistants working in
 `ansible-workstation`. Read together with link:../README.adoc[README.adoc],
@@ -82,7 +83,7 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 
 [IMPORTANT]
 ====
-This repository is *public*: https://github.com/drehtuer/ansible-workstation
+This repository is *public*: {repo-url}
 
 Treat every plaintext file here as world-readable, because it is. GitHub is
 untrusted infrastructure. The public setting is a deliberate control — it makes
@@ -95,7 +96,8 @@ private as a way to relax any rule below.
 . Never write the vault password into a file inside the repository, into
   `ansible.cfg` as a literal, into a shell command, or into CI configuration.
   The password file lives at `~/.config/ansible/vault_pass` and nowhere else.
-. Never decrypt the vault to disk. Use `invoke vault-edit`, which edits in place.
+. Never decrypt the vault to disk. Use `invoke vault-edit`, which edits in
+  place.
   If a decrypted copy is unavoidable, it goes outside the repository and is
   deleted immediately.
 . Never commit plaintext where a `vault_*` variable belongs. Real e-mail
@@ -167,8 +169,8 @@ private as a way to relax any rule below.
   there. Only `ruff` is configured in `pyproject.toml`.
 * All Python — `tasks.py` and `scripts/*.py` — must pass `ruff check` and
   `ruff format --check`. Fix findings; do not add a blanket `# noqa`. If a rule
-  genuinely does not fit, narrow it in `[tool.ruff.lint.per-file-ignores]` with a
-  comment saying why.
+  genuinely does not fit, narrow it in `[tool.ruff.lint.per-file-ignores]`
+  with a comment saying why.
 * Use type hints and a docstring on every task and helper.
 
 == Shell scripts
@@ -215,10 +217,19 @@ Booleans and quoting::
 `true`/`false` lowercase; quote file modes as strings (`"0644"`).
 
 Whitespace::
-Governed by `.editorconfig`: spaces only, 2 for YAML and JSON, 4 elsewhere, LF,
-final newline, no trailing whitespace. Those values mirror `ruff`, `.yamllint`,
-`.gitattributes` and the pre-commit hooks — never change one side alone, or the
-editor and CI will fight over every save.
+Governed by `.editorconfig`: *80 columns everywhere*, spaces only, 2 for YAML
+and JSON, 4 elsewhere, LF, final newline, no trailing whitespace. The 80-column
+cap is enforced, not advisory — `ruff` and `.yamllint` both fail the build on a
+long line. `uv.lock` and `requirements.txt` are exempt as generated files.
++
+These values mirror `ruff`, `.yamllint`, `.gitattributes` and the pre-commit
+hooks — never change one side alone, or the editor and CI will fight over every
+save.
++
+When a line will not fit: wrap shell strings across arguments, use a folded
+YAML scalar (`>-`) with continuation lines at the *same* indent so it folds to
+one line, and in AsciiDoc put long URLs in the `{repo-url}` attribute rather
+than inline.
 
 == Windows tasks
 

@@ -5,6 +5,7 @@
 :icons: font
 :experimental:
 :source-highlighter: rouge
+:repo-url: https://github.com/drehtuer/ansible-workstation
 
 Ansible playbooks that turn a freshly installed WSL distribution into a
 ready-to-use development workstation: the user's tools, dotfiles and settings,
@@ -72,8 +73,7 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   resolved against CPython 3.12.
 
 | Remote
-| `origin` → link:https://github.com/drehtuer/ansible-workstation[drehtuer/ansible-workstation],
-  public.
+| `origin` → {repo-url}[drehtuer/ansible-workstation], public.
 |===
 
 .What is verified
@@ -236,7 +236,8 @@ Python, plus a consistent editor setup:
 * `asciidoctor` (Ruby) for rendering the documentation
 * `gh`, the GitHub CLI, from the official apt repository
 * `uv`, installed by the same `scripts/install-uv.sh` the host uses
-* a Docker socket (docker-outside-of-docker) for the containerised converge tests
+* a Docker socket (docker-outside-of-docker) for the containerised converge
+  tests
 
 .Host mounts
 [cols="1,1,2", options="header"]
@@ -432,9 +433,8 @@ speculatively.
 
 === This repository is public, on purpose
 
-link:https://github.com/drehtuer/ansible-workstation[github.com/drehtuer/ansible-workstation]
-is a *public* repository, and that is a deliberate security choice rather than
-an oversight.
+{repo-url}[This repository] is public, and that is a deliberate security
+choice rather than an oversight.
 
 A private repository invites sloppiness: "it is private anyway" is how plaintext
 credentials end up committed. Public makes the rule unambiguous — *nothing
@@ -463,7 +463,8 @@ What follows from that:
 . The vault password is *never* stored in this repository, never passed on a
   command line, never echoed, never logged, never placed in CI without a
   protected secret store.
-. Tasks that render secret values set `no_log: true` and carry the `secrets` tag.
+. Tasks that render secret values set `no_log: true` and carry the `secrets`
+  tag.
 . Files written from secrets get explicit `mode: "0600"` and the correct owner.
 
 === The password file
@@ -620,14 +621,19 @@ clone and in CI, where no password exists at all.
 
 === Whitespace and indentation
 
-`.editorconfig` sets charset, line endings, indentation and line length per file
-type. The values mirror the tools that already enforce them — `ruff` for Python,
-`.yamllint` for YAML, `.gitattributes` for line endings, and the pre-commit
-whitespace hooks — so a file saved by an editor is never reformatted by CI.
+*Every line is capped at 80 columns*, in every file type. `.editorconfig`
+declares it, and two linters enforce it: `ruff` (`line-length = 80`) for Python
+and `.yamllint` (`line-length: max: 80`) for YAML, both failing the build rather
+than warning. The remaining values — charset, LF endings, final newline, no
+trailing whitespace, indent width — likewise mirror `.gitattributes` and the
+pre-commit hooks.
 
 Change a value there only together with the tool that owns it; an
 `.editorconfig` that disagrees with the linters is worse than none, because it
 makes the editor and CI fight over every save.
+
+Two file types are exempt, because their content is generated and their wrapping
+is not ours to choose: `uv.lock` and `requirements.txt`.
 
 Most editors need a plugin to honour it. The devcontainer installs the VS Code
 extension.

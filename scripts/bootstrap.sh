@@ -21,7 +21,8 @@ if [[ ! -f uv.lock ]]; then
     log "No uv.lock yet - resolving dependencies"
     uv lock
     uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt
-    log "Commit uv.lock and requirements.txt so every machine resolves identically"
+    log "Commit uv.lock and requirements.txt so every machine" \
+        "resolves identically"
 fi
 
 log "Creating the virtualenv from uv.lock"
