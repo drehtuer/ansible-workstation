@@ -72,7 +72,7 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   resolved against CPython 3.12.
 
 | Remote
-| `origin` → link:https://github.com/drehtuer/ansible-workstation[github.com/drehtuer/ansible-workstation],
+| `origin` → link:https://github.com/drehtuer/ansible-workstation[drehtuer/ansible-workstation],
   public.
 |===
 
@@ -283,6 +283,7 @@ throwaway converge tests only.
 │   ├── CLAUDE.adoc            <1>
 │   └── CLAUDE.md              <2>
 ├── .devcontainer/             <3>
+├── .editorconfig
 ├── .github/workflows/ci.yml
 ├── .pre-commit-config.yaml
 ├── tasks.py                   <4>
@@ -616,6 +617,20 @@ present, and passes the *path* — it never reads a password. This is also why
 `ansible.cfg` deliberately omits `vault_password_file`: a missing file named
 there makes every command fail, including lint and syntax checks on a fresh
 clone and in CI, where no password exists at all.
+
+=== Whitespace and indentation
+
+`.editorconfig` sets charset, line endings, indentation and line length per file
+type. The values mirror the tools that already enforce them — `ruff` for Python,
+`.yamllint` for YAML, `.gitattributes` for line endings, and the pre-commit
+whitespace hooks — so a file saved by an editor is never reformatted by CI.
+
+Change a value there only together with the tool that owns it; an
+`.editorconfig` that disagrees with the linters is worse than none, because it
+makes the editor and CI fight over every save.
+
+Most editors need a plugin to honour it. The devcontainer installs the VS Code
+extension.
 
 === Python code quality
 

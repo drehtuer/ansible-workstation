@@ -25,6 +25,7 @@
     "vscode": {
       "extensions": [
         "redhat.ansible",
+        "editorconfig.editorconfig",
         "charliermarsh.ruff",
         "asciidoctor.asciidoctor-vscode"
       ]

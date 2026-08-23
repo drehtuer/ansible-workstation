@@ -1,0 +1,48 @@
+# Editor defaults for ansible-workstation.
+#
+# These values deliberately mirror the tooling that already enforces them, so a
+# file saved by an editor is never reformatted by CI:
+#   * trailing whitespace and final newlines -> pre-commit
+#     (trailing-whitespace, end-of-file-fixer)
+#   * LF line endings                        -> .gitattributes
+#   * Python indent and line length          -> ruff (pyproject.toml)
+#   * YAML indent and line length            -> .yamllint
+#
+# Change a value here only together with the tool that owns it.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Ansible content, workflows, pre-commit config.
+[*.{yml,yaml}]
+indent_size = 2
+max_line_length = 120
+
+[*.json]
+indent_size = 2
+
+[*.py]
+max_line_length = 100
+
+[*.{sh,bash}]
+indent_size = 4
+
+[*.toml]
+indent_size = 4
+
+# Documentation is hard-wrapped rather than relying on editor soft wrap.
+# Prose targets 80 columns, but the ceiling is 100: an AsciiDoc link macro is
+# atomic and a long URL cannot be broken across lines.
+[*.adoc]
+indent_size = 2
+max_line_length = 100
+
+# Keep placeholder files genuinely empty.
+[.gitkeep]
+insert_final_newline = false
