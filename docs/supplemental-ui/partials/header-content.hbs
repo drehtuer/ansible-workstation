@@ -1,0 +1,40 @@
+{{!--
+  Overrides partials/header-content.hbs from the Antora default UI bundle,
+  which ships a demo navbar: Products and Services were dropdowns of
+  "Product A" / "Service B" placeholders, every one of them an href="#".
+  They are gone here; the rest of the file is the upstream copy, byte for
+  byte, so it stays diffable against the bundle it came from.
+
+  Refresh it after `invoke site --fetch` pulls a newer bundle:
+
+    unzip -p .cache/antora/ui/*.zip partials/header-content.hbs
+--}}
+<header class="header">
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="{{{or site.url siteRootPath}}}">{{site.title}}</a>
+      {{#if env.SITE_SEARCH_PROVIDER}}
+      <div class="navbar-item search hide-for-print">
+        <div id="search-field" class="field">
+          <input id="search-input" type="text" placeholder="Search the docs"{{#if page.home}} autofocus{{/if}}>
+        </div>
+      </div>
+      {{/if}}
+      <button class="navbar-burger" aria-controls="topbar-nav" aria-expanded="false" aria-label="Toggle main menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+    <div id="topbar-nav" class="navbar-menu">
+      <div class="navbar-end">
+        <a class="navbar-item" href="#">Home</a>
+        <div class="navbar-item">
+          <span class="control">
+            <a class="button is-primary" href="#">Download</a>
+          </span>
+        </div>
+      </div>
+    </div>
+  </nav>
+</header>

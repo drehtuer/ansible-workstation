@@ -164,6 +164,12 @@ _Documentation_.
   the conversion is in memory and must stay that way.
 * The extensions are ordered in `antora-playbook.yml`: pages are lent first,
   converted second. Keep that order, or a lent Markdown file ships raw.
+* The UI bundle is themed by overlay, not by editing: files under
+  `docs/supplemental-ui/` replace bundle files of the same path. Keep an
+  override byte-identical to its upstream apart from the deliberate change,
+  so it stays diffable, and re-check it after `invoke site --fetch` pulls a
+  newer bundle -- an override of a partial upstream has restructured is
+  applied silently, not rejected.
 * Do not add a `version` key to `docs/antora.yml`. The descriptor wins over
   the playbook, and every release tag carries a copy of that file, so a
   version named there would be stamped on all of them. Versions belong to the
@@ -189,7 +195,10 @@ _Documentation_.
   warning — fix the link.
 * Antora and its extension are the only JavaScript here, and `ruff` does not
   cover them. Keep the extension small, `'use strict'`, two-space indent, and
-  under the same 80-column cap as everything else.
+  under the same 80-column cap as everything else. Vendored `.hbs` overrides
+  are the one exemption from that cap, declared in `.editorconfig`: they are
+  upstream's lines, and rewrapping them would destroy the diff that makes an
+  override reviewable.
 * Node.js is a *documentation* dependency. Nothing the playbooks install may
   depend on it, and no role may require `npm`.
 * After changing `package.json`, commit the regenerated `package-lock.json`

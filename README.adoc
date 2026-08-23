@@ -766,9 +766,12 @@ docs/
 │   ├── repository_pages.js      <3>
 │   ├── markdown_pages.js        <4>
 │   └── prerelease_versions.js   <5>
+├── supplemental-ui/             <6>
+│   └── partials/
+│       └── header-content.hbs
 └── modules/ROOT/
-    ├── nav.adoc                 <6>
-    └── pages/                   <7>
+    ├── nav.adoc                 <7>
+    └── pages/                   <8>
 ----
 <1> The site: title, URL, content sources, UI bundle, output directory.
 <2> The component: name `workstation`. It deliberately declares no version;
@@ -776,9 +779,10 @@ docs/
 <3> Lends in files that live outside the component, see <<lent-pages>>.
 <4> Converts Markdown pages, see <<markdown-pages>>.
 <5> Decides which version the start page lands on, see <<versions>>.
-<6> The navigation tree. A page that is not listed here is still built, but
+<6> Overlays the UI bundle, see <<ui-override>>.
+<7> The navigation tree. A page that is not listed here is still built, but
     unreachable.
-<7> New pages go here, one file per page.
+<8> New pages go here, one file per page.
 
 Adding a page therefore means two files: the page under
 `docs/modules/ROOT/pages/`, and an `xref:` line in `nav.adoc`.
@@ -897,6 +901,28 @@ Three consequences worth knowing:
 Input is parsed as GitHub-flavoured Markdown with `--wrap=preserve`, so
 80-column source survives the round trip. The `Edit this Page` link keeps
 pointing at the `.md` file, because that is still the file to edit.
+
+[#ui-override]
+=== The navbar override
+
+The default UI bundle is a demo as much as a theme. Its navbar ships
+`Products` and `Services` dropdowns listing `Product A` and `Service B`, every
+entry an `href="#"`. Both dropdowns are removed here.
+
+Antora offers no setting for this, so the fix is a supplemental file: the
+playbook's `ui.supplemental_files` points at `docs/supplemental-ui/`, and
+anything below it overlays the bundle by matching path. Exactly one file is
+overridden — `partials/header-content.hbs`.
+
+That file is the upstream partial with the two dropdown blocks deleted and
+nothing else touched, which is what keeps it diffable against the bundle it
+came from. Its header comment says as much, and gives the command that prints
+the current upstream copy.
+
+CAUTION: The bundle is fetched from `HEAD` with `snapshot: true`, so it moves.
+When `invoke site --fetch` picks up a newer one, diff the override against it.
+An override whose upstream has been restructured is applied silently, not
+rejected — the site would simply keep rendering the old header.
 
 === Why Antora and not plain asciidoctor
 
