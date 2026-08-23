@@ -1,0 +1,9 @@
+---
+# Template for inventory/group_vars/all/vault.yml.
+#
+# `invoke vault-init` copies this file and encrypts the result.  The committed
+# vault.yml is ALWAYS encrypted; this example holds placeholders only and must
+# never contain real values.
+vault_git_user_name: "Your Name"
+vault_git_user_email: "you@example.invalid"
+vault_git_signing_key: ""

@@ -1,0 +1,47 @@
+[project]
+name = "ansible-workstation"
+version = "0.1.0"
+description = "Ansible provisioning for a personal WSL workstation"
+requires-python = ">=3.12"
+dependencies = [
+    "ansible-core>=2.18,<2.20",
+]
+
+[dependency-groups]
+dev = [
+    "ansible-lint>=25.0",
+    "yamllint>=1.35",
+    "ruff>=0.9",
+    "invoke>=2.2",
+]
+
+[tool.uv]
+# This project is a dependency manifest, not a distributable package.
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "roles/*/files"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "S",    # flake8-bandit
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "S404",  # subprocess import is intentional in tasks.py
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tasks.py" = ["S603", "S607"]  # invoke shells out by design
+
+[tool.ruff.format]
+quote-style = "double"

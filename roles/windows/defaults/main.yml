@@ -1,0 +1,18 @@
+---
+windows_powershell: /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+
+# Files copied into the Windows user profile.
+# Each entry: {src: <path under files/>, dest: <path relative to %USERPROFILE%>}
+# Set restrict_acl: true for anything the Windows OpenSSH client must accept.
+windows_files: []
+
+# Font files installed per user -- no elevation required.
+windows_fonts: []
+
+# Packages installed with winget in user scope -- no elevation required.
+windows_winget_packages: []
+
+# Packages installed with Chocolatey.  These REQUIRE elevation and raise an
+# interactive UAC prompt, so they are tagged 'interactive' and skipped by
+# default in unattended runs.
+windows_choco_packages: []

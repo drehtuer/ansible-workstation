@@ -1,0 +1,6 @@
+---
+- name: Report wsl.conf change
+  ansible.builtin.debug:
+    msg: >-
+      /etc/wsl.conf changed.  Run `wsl --shutdown` from Windows and restart the
+      distribution for the new settings to take effect.

@@ -1,0 +1,5 @@
+---
+git_packages:
+  - git
+git_default_branch: main
+git_editor: vim

@@ -1,0 +1,91 @@
+---
+# Windows is configured from WSL through interop: the connection stays local
+# and tasks shell out to powershell.exe.  There is no WinRM anywhere.
+
+- name: Resolve the Windows user profile path
+  ansible.builtin.command:
+    argv:
+      - "{{ windows_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - "[Console]::Out.Write($env:USERPROFILE)"
+  register: windows_userprofile
+  changed_when: false
+
+- name: Translate the profile path into a WSL path
+  ansible.builtin.command:
+    argv:
+      - wslpath
+      - -u
+      - "{{ windows_userprofile.stdout | trim }}"
+  register: windows_userprofile_wsl
+  changed_when: false
+
+- name: Copy files into the Windows user profile
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ windows_userprofile_wsl.stdout | trim }}/{{ item.dest }}"
+    mode: "0644"
+  loop: "{{ windows_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  register: windows_copied
+
+# POSIX modes are meaningless on NTFS.  The Windows OpenSSH client refuses a
+# private key whose ACL grants access beyond its owner, so it must be fixed
+# with icacls rather than with `mode:`.
+- name: Restrict ACLs on sensitive Windows files
+  ansible.builtin.command:
+    argv:
+      - "{{ windows_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - >-
+        icacls "$env:USERPROFILE\{{ item.dest | replace('/', '\\') }}"
+        /inheritance:r /grant:r "$env:USERNAME:(F)"
+  loop: "{{ windows_files | selectattr('restrict_acl', 'defined') | selectattr('restrict_acl') | list }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  changed_when: true
+  tags: [secrets]
+
+- name: Install fonts for the current Windows user
+  ansible.builtin.include_tasks: fonts.yml
+  loop: "{{ windows_fonts }}"
+  loop_control:
+    loop_var: font
+
+- name: Install winget packages in user scope
+  ansible.builtin.command:
+    argv:
+      - "{{ windows_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - >-
+        winget install --exact --id {{ item }} --scope user
+        --accept-package-agreements --accept-source-agreements
+  loop: "{{ windows_winget_packages }}"
+  register: windows_winget
+  changed_when: "'Successfully installed' in windows_winget.stdout"
+  failed_when:
+    - windows_winget.rc != 0
+    - "'already installed' not in windows_winget.stdout"
+
+# Chocolatey cannot be driven unattended from WSL: it needs an elevated shell,
+# and interop can only elevate via Start-Process -Verb RunAs, which raises a
+# UAC prompt on the Windows desktop.  Skip with --skip-tags interactive.
+- name: Install Chocolatey packages (raises an interactive UAC prompt)
+  ansible.builtin.command:
+    argv:
+      - "{{ windows_powershell }}"
+      - -NoProfile
+      - -Command
+      - >-
+        Start-Process -FilePath choco.exe -Verb RunAs -Wait
+        -ArgumentList 'install','{{ item }}','-y'
+  loop: "{{ windows_choco_packages }}"
+  changed_when: true
+  tags: [interactive]

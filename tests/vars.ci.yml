@@ -1,0 +1,7 @@
+---
+# Obviously-fake values so CI can exercise the same code paths without a vault.
+# Tasks that genuinely need a secret carry the 'secrets' tag and are skipped.
+git_user_name: "CI Robot"
+git_user_email: "ci@example.invalid"
+git_signing_key: ""
+manage_windows: false

@@ -1,0 +1,15 @@
+---
+dotfiles_home: "{{ ansible_user_dir }}"
+
+# Directories created before anything is placed into them.
+dotfiles_directories:
+  - .config
+  - .local/bin
+
+# Static files copied verbatim from roles/dotfiles/files/.
+# Each entry: {src: <name under files/>, dest: <path relative to home>, mode: "0644"}
+dotfiles_files: []
+
+# Templated files from roles/dotfiles/templates/, same fields.
+# Anything containing a secret must set secret: true so it is tagged and hidden.
+dotfiles_templates: []

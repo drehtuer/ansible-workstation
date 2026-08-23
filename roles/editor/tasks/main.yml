@@ -1,0 +1,6 @@
+---
+- name: Install editor packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ editor_packages }}"
+    state: present

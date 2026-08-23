@@ -1,0 +1,13 @@
+---
+- name: Install shell packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ shell_packages }}"
+    state: present
+
+- name: Set the login shell
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    shell: "{{ shell_default_shell }}"
+  when: shell_default_shell | length > 0

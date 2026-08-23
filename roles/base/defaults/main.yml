@@ -1,0 +1,14 @@
+---
+base_packages:
+  - build-essential
+  - ca-certificates
+  - curl
+  - htop
+  - jq
+  - less
+  - man-db
+  - rsync
+  - tree
+  - unzip
+  - wget
+base_apt_cache_valid_time: 3600

@@ -1,0 +1,21 @@
+---
+# Per-user font installation needs no elevation: the file goes into
+# %LOCALAPPDATA%\Microsoft\Windows\Fonts and is registered under HKCU.
+- name: "Install font {{ font.name }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ windows_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - >-
+        $dir = "$env:LOCALAPPDATA\Microsoft\Windows\Fonts";
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null;
+        $dst = Join-Path $dir '{{ font.file }}';
+        if (Test-Path $dst) { exit 100 };
+        Copy-Item -LiteralPath '{{ font.source }}' -Destination $dst;
+        New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+        -Name '{{ font.name }}' -PropertyType String -Value $dst -Force | Out-Null
+  register: windows_font_install
+  changed_when: windows_font_install.rc == 0
+  failed_when: windows_font_install.rc not in [0, 100]
