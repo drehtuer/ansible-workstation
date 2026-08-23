@@ -103,8 +103,7 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     # script through `bash -c` invites quoting bugs, and a real file can be
     # syntax-checked and read on its own.
     c.run(
-        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} "
-        "bash /repo/tests/converge.sh",
+        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} bash /repo/tests/converge.sh",
         pty=True,
     )
 
