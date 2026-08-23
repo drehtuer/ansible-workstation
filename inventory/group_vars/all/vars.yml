@@ -1,0 +1,15 @@
+---
+# Repository-wide variables.
+#
+# Anything user-identifying references its vault_* counterpart in vault.yml, so
+# that `grep -r vault_ inventory/` is a complete list of what is secret.
+git_user_name: "{{ vault_git_user_name }}"
+git_user_email: "{{ vault_git_user_email }}"
+git_signing_key: "{{ vault_git_signing_key | default('') }}"
+
+# Windows-side configuration is opt-in and never part of a default run.
+manage_windows: false
+
+# Which optional role groups to run.
+enable_languages: true
+enable_editor: true

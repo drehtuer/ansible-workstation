@@ -1,0 +1,5 @@
+---
+# Placeholder: extend with the toolchains this workstation needs.
+languages_packages:
+  - python3-venv
+  - pipx

@@ -1,0 +1,8 @@
+# Keep `git diff` from printing decrypted vault contents.
+# Enable once per clone:
+#   git config diff.ansible-vault.textconv "echo '<encrypted vault>'"
+inventory/group_vars/*/vault.yml diff=ansible-vault merge=binary
+
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.adoc text eol=lf

@@ -1,0 +1,19 @@
+---
+- name: Configure the Windows host through WSL interop
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  pre_tasks:
+    - name: Assert Windows management is enabled
+      ansible.builtin.assert:
+        that:
+          - manage_windows | bool
+        fail_msg: >-
+          manage_windows is false.  Set it in host_vars for this machine, or
+          pass -e manage_windows=true, before running this playbook.
+      tags: [always]
+
+  roles:
+    - role: windows
+      tags: [windows]

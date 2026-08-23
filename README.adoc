@@ -1,0 +1,682 @@
+= ansible-workstation — Ansible provisioning for a WSL workstation
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:experimental:
+:source-highlighter: rouge
+
+Ansible playbooks that turn a freshly installed WSL distribution into a
+ready-to-use development workstation: the user's tools, dotfiles and settings,
+reproducibly and idempotently.
+
+Target distributions: *Ubuntu 24.04 LTS* and *Ubuntu 26.04 LTS*.
+
+[IMPORTANT]
+====
+This repository provisions a *personal workstation*, not a server.
+No long-running services, no daemons, no listening ports are configured here.
+If a tool needs a background process (for example `docker`), it is installed
+because the user drives it interactively — not to serve other machines.
+
+Server configuration lives in a separate `ansible` repository. Do not merge the
+two.
+====
+
+[#state]
+== Current state
+
+Scaffolding is complete and self-consistent; the roles are deliberately thin.
+
+.What exists
+[cols="1,3", options="header"]
+|===
+| Area | State
+
+| Task runner
+| `tasks.py` (Invoke), 12 tasks. The single entry point for every check.
+
+| Python environment
+| `pyproject.toml` with `ansible-core` + a `dev` group (`ansible-lint`,
+  `yamllint`, `ruff`, `invoke`). `ruff` configured in the same file.
+
+| Bootstrap
+| `scripts/install-uv.sh` (standalone, idempotent) and `scripts/bootstrap.sh`
+  (project virtualenv + Galaxy content).
+
+| Inventory
+| Single host `localhost`, single vault at
+  `inventory/group_vars/all/vault.yml`.
+
+| Playbooks
+| `playbooks/site.yml` (Linux) and `playbooks/windows.yml` (opt-in).
+
+| Roles
+| `wsl`, `base`, `shell`, `git`, `editor`, `languages`, `dotfiles`, `windows` —
+  all wired up and lintable, each installing a minimal package set.
+
+| Secret handling
+| Vault indirection, `secrets` tag, `no_log`, pre-commit guard, `.gitattributes`
+  textconv, `.gitignore` patterns.
+
+| CI
+| GitHub Actions: lint job, then a converge matrix over both Ubuntu releases.
+  Green.
+
+| Devcontainer
+| `asciidoctor`, `gh`, `uv`, docker-outside-of-docker; `~/.claude` and `~/.ssh`
+  bind-mounted from the host.
+
+| Dependency lock
+| `uv.lock` + `requirements.txt` committed. 35 packages, `ansible-core` 2.19.12,
+  resolved against CPython 3.12.
+
+| Remote
+| `origin` → link:https://github.com/drehtuer/ansible-workstation[github.com/drehtuer/ansible-workstation],
+  public.
+|===
+
+.What is verified
+* `ansible-lint` passes its *production* profile with zero findings (45 files).
+* `yamllint` passes.
+* `ruff check` and `ruff format --check` pass.
+* `scripts/install-uv.sh` provisions a clean Ubuntu 24.04 container end to end.
+* `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
+  reports `changed=0`, so the roles are observably idempotent.
+* Python syntax, shell syntax, YAML/JSON parsing, and the vault guard's own
+  behaviour.
+
+.What is not verified
+The playbook has never run on a *real* WSL machine — only in containers, as
+root, with the `secrets` tag skipped. Three things are therefore still untested:
+`become` against a real sudo prompt, the vault path end to end, and everything
+in `roles/windows`, which needs a Windows host and cannot run in CI at all.
+
+[#roadmap]
+== Roadmap
+
+Ordered roughly by dependency.
+
+. *Fill in the roles.* Every `roles/*/defaults/main.yml` currently holds a
+  placeholder package list. Replace with the real toolset.
+. *Create the vault.* `invoke vault-init`, then move the git identity into it.
+. *Dotfiles content.* `dotfiles_files` and `dotfiles_templates` are empty lists;
+  add the actual files under `roles/dotfiles/{files,templates}/`.
+. *Windows side.* `roles/windows` has working task shapes but empty inputs —
+  populate `windows_files`, `windows_fonts`, `windows_winget_packages`.
+. *Fork for work.* Once the personal setup is stable, fork to the internal host
+  (see <<separation>>).
+. *Pick a license.*
+
+=== Deferred / decided against
+
+* *Separate vault passwords per profile.* Designed, then dropped — the fork
+  model makes it unnecessary. See <<separation>>.
+* *A dotfile manager* (stow, chezmoi, yadm). See <<dotfiles>>.
+* *Molecule.* The converge task drives a throwaway container directly; Molecule
+  would add a heavy dependency for the same result.
+* *A Makefile.* Replaced by Invoke, see <<testing>>.
+
+== Design goals
+
+[cols="1,3", options="header"]
+|===
+| Goal | Meaning
+
+| Reproducible
+| A new WSL distro reaches a known-good state with a single command, using a
+  pinned toolchain.
+
+| Idempotent
+| Re-running the playbook changes nothing when the system is already converged.
+  `--check` must run clean against a provisioned host.
+
+| Self-contained
+| The Ansible toolchain lives in a project-local Python virtual environment.
+  Nothing is installed into the system Python.
+
+| Secret-safe
+| Every user-specific credential, private URL, account name or token lives in an
+  Ansible Vault file. The vault password never enters the repository, the shell
+  history, the logs, or CI output.
+
+| Locally verifiable
+| Every check that CI runs can be run identically on the developer's machine
+  through the same `invoke` tasks.
+|===
+
+== Toolchain
+
+=== Python project layout
+
+The repository is a Python project in the *dependency-manifest* sense: it has a
+`pyproject.toml` that pins the Ansible toolchain, but it is not a distributable
+package.
+
+.pyproject.toml (shape)
+[source,toml]
+----
+[project]
+name = "ansible-workstation"
+requires-python = ">=3.12"
+dependencies = ["ansible-core>=2.18,<2.20"]
+
+[dependency-groups]
+dev = ["ansible-lint>=25.0", "yamllint>=1.35", "ruff>=0.9", "invoke>=2.2"]
+
+[tool.uv]
+package = false            # <1>
+----
+<1> Nothing is built or installed from this source tree; `uv` manages the
+    environment only.
+
+Why this and not a bare `requirements.txt`:
+
+* `uv.lock` pins the *entire* transitive tree, so CI and every workstation
+  resolve to byte-identical versions
+* runtime dependencies (`ansible-core`) and tooling are separated by dependency
+  group, so provisioning a fresh machine does not drag in the linters
+* Ubuntu 24.04+ enforces PEP 668 — `pip install` into the system Python is
+  refused outright, so a virtual environment is required regardless
+* if custom filter plugins or modules are ever needed, they already have a home
+
+[NOTE]
+====
+The Ansible ecosystem does not read tool configuration from `pyproject.toml`.
+`ansible-lint` uses `.ansible-lint`, `yamllint` uses `.yamllint`, and Galaxy
+content is declared in `requirements.yml`. `pyproject.toml` owns *Python
+dependencies plus the `ruff` configuration*; the Ansible tools keep their own
+files.
+====
+
+[#bootstrap]
+=== Bootstrapping
+
+Two scripts, split so the first one is useful on its own:
+
+`scripts/install-uv.sh`::
+Installs the apt prerequisites (`ca-certificates`, `curl`, `git`, `python3`,
+`python3-venv`) and `uv`. Makes no assumption about this repository, is
+idempotent, and works both as root and as an unprivileged user. Honours
+`UV_INSTALL_DIR` (default `/usr/local/bin` as root, `~/.local/bin` otherwise)
+and `UV_VERSION`.
++
+Three callers use it: a clean WSL distro by hand, `bootstrap.sh`, and the
+devcontainer image build. Installing `uv` the same way everywhere is the point.
+
+`scripts/bootstrap.sh`::
+Calls `install-uv.sh`, resolves `uv.lock` if it is missing, runs `uv sync`, and
+installs the Galaxy requirements.
+
+[source,bash]
+----
+# clean Ubuntu, uv only
+./scripts/install-uv.sh
+
+# full project setup
+./scripts/bootstrap.sh
+----
+
+Activate with `source .venv/bin/activate`, or prefix commands with `uv run`.
+
+For machines where installing `uv` is undesirable, the exported
+`requirements.txt` supports a plain fallback:
+
+[source,bash]
+----
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+----
+
+[#devcontainer]
+=== Devcontainer
+
+Optional, and *not* the primary environment. It exists for tooling that is not
+Python, plus a consistent editor setup:
+
+* `asciidoctor` (Ruby) for rendering the documentation
+* `gh`, the GitHub CLI, from the official apt repository
+* `uv`, installed by the same `scripts/install-uv.sh` the host uses
+* a Docker socket (docker-outside-of-docker) for the containerised converge tests
+
+.Host mounts
+[cols="1,1,2", options="header"]
+|===
+| Host path | Mode | Why
+
+| `~/.claude`
+| read-write
+| Claude Code state and credentials. Writable because Claude Code persists
+  session data that should survive the container.
+
+| `~/.ssh`
+| *read-only*
+| Signing and pushing need the keys; nothing in the container should ever
+  modify them.
+|===
+
+[CAUTION]
+====
+The read-only `~/.ssh` mount has one consequence: `ssh` cannot append to
+`known_hosts`, so a first connection to an unknown host fails rather than
+prompting. Accept the host key once on the WSL side, or drop `,readonly` from
+the mount in `.devcontainer/devcontainer.json` if that becomes tedious.
+
+Bind mounts preserve host UIDs. This works when the WSL user is UID 1000, which
+matches the image's `vscode` user. If your UID differs, the mounts will appear
+as owned by someone else and `updateRemoteUserUID` needs attention.
+====
+
+[NOTE]
+====
+A devcontainer cannot provision the WSL host it runs in — a container is
+isolated from its host by design. Real provisioning runs happen in the WSL
+distro against `localhost`. The devcontainer is for authoring, linting, docs and
+throwaway converge tests only.
+====
+
+== Repository layout
+
+[source]
+----
+.
+├── .claude/
+│   ├── CLAUDE.adoc            <1>
+│   └── CLAUDE.md              <2>
+├── .devcontainer/             <3>
+├── .github/workflows/ci.yml
+├── .pre-commit-config.yaml
+├── tasks.py                   <4>
+├── pyproject.toml             <5>
+├── uv.lock                    <6>
+├── requirements.txt           <7>
+├── requirements.yml           <8>
+├── ansible.cfg
+├── inventory/
+│   ├── hosts.yml              <9>
+│   ├── group_vars/all/
+│   │   ├── vars.yml
+│   │   ├── vault.yml          <10>
+│   │   └── vault.yml.example
+│   └── host_vars/
+├── playbooks/
+│   ├── site.yml               <11>
+│   └── windows.yml            <12>
+├── roles/
+│   ├── wsl/                   <13>
+│   ├── base/
+│   ├── shell/
+│   ├── git/
+│   ├── editor/
+│   ├── languages/
+│   ├── dotfiles/              <14>
+│   └── windows/               <15>
+├── scripts/
+│   ├── install-uv.sh          <16>
+│   ├── bootstrap.sh
+│   └── check_vault_encrypted.py   <17>
+├── tests/                     <18>
+└── docs/
+----
+<1> Working agreements for Claude Code / AI assistants.
+<2> One-line stub that includes CLAUDE.adoc (Claude Code only auto-loads `.md`).
+<3> Optional: AsciiDoc rendering, `gh`, and containerised tests.
+<4> `invoke` task runner — the single entry point for every check; CI calls
+    these same tasks.
+<5> Python dependency manifest and `ruff` configuration, non-packaging.
+<6> Pins the full transitive tree; regenerate with `invoke lock`.
+<7> Exported from `uv.lock` for `uv`-less bootstrap and for the converge
+    container.
+<8> Ansible Galaxy collections and roles — unrelated to Python deps.
+<9> Always `localhost`, `connection: local`.
+<10> Encrypted. Created from the example by `invoke vault-init`.
+<11> Entry point for the Linux/WSL side.
+<12> Windows-side configuration, opt-in.
+<13> `/etc/wsl.conf`, interop, systemd, Windows path handling.
+<14> Plain Ansible templates — no external dotfile manager, see <<dotfiles>>.
+<15> Windows tasks driven through WSL interop.
+<16> Standalone `uv` installer, shared by host and devcontainer.
+<17> Pre-commit guard against plaintext vaults and stray password files.
+<18> Converge fixtures and dummy vars for CI.
+
+== Quick start
+
+[source,bash]
+----
+git clone <this-repo> ~/git/ansible-workstation
+cd ~/git/ansible-workstation
+./scripts/bootstrap.sh
+uv run invoke apply
+----
+
+Useful variations:
+
+[source,bash]
+----
+uv run invoke --list                 # every available task
+uv run invoke check                  # dry run; zero changes on a converged host
+uv run invoke check --tags shell,git # limit to a subset
+uv run invoke apply --tags shell     # provision one role for real
+----
+
+Anything the task runner does not cover can be run directly:
+
+[source,bash]
+----
+uv run ansible-playbook playbooks/site.yml --skip-tags languages
+----
+
+== Configuration model
+
+Variables are layered, lowest to highest precedence:
+
+. `roles/<role>/defaults/main.yml` — sane defaults, safe to override
+. `inventory/group_vars/all/vars.yml` — repository-wide choices
+. `inventory/host_vars/<hostname>.yml` — machine-specific overrides
+. `--extra-vars` — one-off runs
+
+Secrets never appear directly in a role. A role references a plain variable, the
+plain variable references the vault:
+
+.inventory/group_vars/all/vars.yml
+[source,yaml]
+----
+git_user_name: "{{ vault_git_user_name }}"
+git_user_email: "{{ vault_git_user_email }}"
+----
+
+.inventory/group_vars/all/vault.yml (encrypted)
+[source,yaml]
+----
+vault_git_user_name: "…"
+vault_git_user_email: "…"
+----
+
+This keeps `grep -r vault_ inventory/` a complete inventory of what is secret,
+and lets the playbook fail loudly when the vault is missing instead of silently
+templating an empty string.
+
+[#separation]
+== Work and private separation
+
+Work and private configuration are separated by *forking the repository*, not by
+branching or by profiles inside one checkout.
+
+This public repository is the upstream. The work repository is a fork living on
+the internal host, under the work account, with its own vault and its own
+password. Improvements flow one way — upstream to fork — by pulling. Work
+specific values never travel back, and nothing internal is ever pushed here.
+
+Consequences:
+
+* the two never share a checkout, a remote, a credential, or an account
+* no runtime flag can select the wrong profile, because a work value simply is
+  not present in this repository
+* the direction of flow is enforced by the trust boundary: this repository is
+  public, so anything internal is disqualified from it by definition
+* the vault stays simple: one file, one password, one identity per repository
+
+[NOTE]
+====
+An earlier design used two vault identities with separate passwords inside one
+repository. It was dropped: the fork model already provides stronger separation,
+and a single vault is materially simpler to operate.
+
+If a future need arises for two profiles in *one* checkout, the mechanism is
+`--vault-id <name>@<path>` with per-profile `group_vars` — but do not add it
+speculatively.
+====
+
+[#vault]
+== Secrets and Ansible Vault
+
+=== This repository is public, on purpose
+
+link:https://github.com/drehtuer/ansible-workstation[github.com/drehtuer/ansible-workstation]
+is a *public* repository, and that is a deliberate security choice rather than
+an oversight.
+
+A private repository invites sloppiness: "it is private anyway" is how plaintext
+credentials end up committed. Public makes the rule unambiguous — *nothing
+sensitive is ever stored here in plaintext, full stop* — and any slip is
+immediately a real incident rather than a latent one. GitHub is treated as
+untrusted infrastructure.
+
+What follows from that:
+
+* the vault password never leaves the local machine; it lives at
+  `~/.config/ansible/vault_pass` and is never committed, never pushed, never put
+  into CI
+* `vault.yml` is committed *encrypted* and nothing else
+* a leak of this repository must be uninteresting to an attacker: they get
+  ciphertext and a list of variable names
+* even inside the vault, prefer references over material — a key path rather
+  than a private key, an account identifier rather than a token, wherever the
+  playbook can look the real value up locally
+
+=== Rules
+
+. Anything user-identifying goes in the vault: e-mail addresses, account names,
+  tokens, SSH keys, internal/private URLs, license keys, proxy credentials.
+  Assume every plaintext file in this repository is world-readable, because it
+  is.
+. The vault password is *never* stored in this repository, never passed on a
+  command line, never echoed, never logged, never placed in CI without a
+  protected secret store.
+. Tasks that render secret values set `no_log: true` and carry the `secrets` tag.
+. Files written from secrets get explicit `mode: "0600"` and the correct owner.
+
+=== The password file
+
+Stored outside the repository:
+
+[source,bash]
+----
+mkdir -p ~/.config/ansible
+install -m 0600 /dev/null ~/.config/ansible/vault_pass
+$EDITOR ~/.config/ansible/vault_pass      # avoids shell history
+uv run invoke vault-init
+----
+
+CAUTION: Never run `echo "$PASSWORD" > file` — the password would land in your
+shell history. Never place a password file inside the repository, not even one
+that is git-ignored.
+
+=== Everyday commands
+
+[source,bash]
+----
+uv run invoke vault-init      # create the encrypted vault from the example
+uv run invoke vault-edit      # edit in place; never decrypted to disk
+
+uv run ansible-vault encrypt_string 'secret-value' --name 'vault_some_token'
+----
+
+=== Leak prevention
+
+* `.gitignore` excludes `vault_pass*`, `*.vault_pass`, `*.decrypted.yml`, `.env`
+* a pre-commit hook (`scripts/check_vault_encrypted.py`) rejects any `vault.yml`
+  that is not `$ANSIBLE_VAULT`-headed, and any staged password-shaped file
+* `detect-private-key` runs alongside it
+* `.gitattributes` marks the vault `diff=ansible-vault` so `git diff` does not
+  print plaintext
+* playbook runs avoid `-vvv` in shared logs; verbose output expands variables
+
+[#dotfiles]
+== Dotfiles
+
+Managed directly by the `dotfiles` role using `ansible.builtin.template` and
+`ansible.builtin.copy`. *No separate dotfile manager* (stow, chezmoi, yadm).
+
+Rationale: Ansible already provides everything such a tool adds — templating,
+per-host variation, idempotent placement, permissions, secret injection from the
+vault. Adding a second tool would mean a second templating syntax, a second
+source of truth, and an ordering dependency between the two.
+
+A dedicated manager would only earn its place if dotfiles had to be deployed on
+machines where Ansible is unavailable. That is not a requirement here.
+
+Static files live in `roles/dotfiles/files/`, anything host-specific in
+`roles/dotfiles/templates/`. Both lists are empty at present.
+
+== Windows configuration
+
+Second topic, opt-in, driven *from WSL* through interop. Disabled by default
+(`manage_windows: false`). The connection stays `local`; tasks shell out to
+`powershell.exe`.
+
+[cols="1,2,1", options="header"]
+|===
+| Item | Approach | Elevation
+
+| Files (`.ssh/`, configs)
+| Copy into `$USERPROFILE` resolved at runtime via `powershell.exe` +
+  `wslpath`; fix ACLs with `icacls` — POSIX modes do not map to NTFS, and the
+  Windows OpenSSH client refuses keys with permissive ACLs
+| none
+
+| Fonts
+| Per-user install into `%LOCALAPPDATA%\Microsoft\Windows\Fonts` plus an `HKCU`
+  registry entry; exits 100 when already present, so the task is idempotent
+| none
+
+| Applications
+| `winget` preferred (user scope works unelevated); Chocolatey for packages
+  `winget` lacks
+| see below
+|===
+
+[WARNING]
+====
+Chocolatey requires an elevated shell. WSL interop cannot elevate silently — it
+has to go through `Start-Process -Verb RunAs`, which raises an interactive UAC
+prompt on the Windows desktop. Chocolatey tasks are therefore tagged
+`interactive` and can be skipped with `--skip-tags interactive`. Prefer `winget`
+user-scope installs wherever the package exists.
+====
+
+[source,bash]
+----
+uv run ansible-playbook playbooks/windows.yml -e manage_windows=true
+----
+
+[#testing]
+== Testing
+
+Every check is an link:https://www.pyinvoke.org/[Invoke] task in `tasks.py`, and
+CI runs *those same tasks*. There is no CI-only command.
+
+[cols="2,3", options="header"]
+|===
+| Task | Purpose
+
+| `invoke setup`
+| Create `.venv` from the lock file and install Galaxy requirements
+
+| `invoke lint`
+| `yamllint`, `ansible-lint`, `ruff check`, `ruff format --check`
+
+| `invoke fmt`
+| Reformat the Python sources with `ruff format`
+
+| `invoke syntax`
+| `ansible-playbook --syntax-check` for every playbook
+
+| `invoke check [--tags …]`
+| `--check --diff` dry run against the local host
+
+| `invoke apply [--tags …]`
+| Provision this machine for real
+
+| `invoke converge --ubuntu 26.04`
+| Full converge + re-converge in a throwaway Ubuntu container; the second run
+  must report `changed=0`
+
+| `invoke lock`
+| Refresh `uv.lock` and re-export `requirements.txt`
+
+| `invoke docs`
+| Render every `.adoc` file into `build/docs/`
+
+| `invoke vault-init` / `invoke vault-edit`
+| Create or edit the vault; never decrypts to disk
+
+| `invoke all`
+| `lint`, `syntax`, then converge on every supported Ubuntu release
+|===
+
+Invoke was chosen over `make` because these tasks are Python: they inspect
+whether the vault password file exists, validate arguments, and assemble command
+lines conditionally. Expressing that in a Makefile means shell inside recipes
+with no way to test it; in `tasks.py` it is ordinary code that `ruff` checks.
+
+=== Vault handling in the task runner
+
+`tasks.py` adds `--vault-password-file` only when the password file is actually
+present, and passes the *path* — it never reads a password. This is also why
+`ansible.cfg` deliberately omits `vault_password_file`: a missing file named
+there makes every command fail, including lint and syntax checks on a fresh
+clone and in CI, where no password exists at all.
+
+=== Python code quality
+
+`ruff` lints and formats `tasks.py` and everything under `scripts/`. Its
+configuration lives in `pyproject.toml`, with `flake8-bandit` (`S`) enabled so
+that shelling out and file handling stay under review.
+
+=== Pre-commit
+
+[source,bash]
+----
+uv run pre-commit install
+----
+
+Hooks: the vault guard, `detect-private-key`, `ruff`, `ruff-format`, `yamllint`,
+and the usual whitespace fixers.
+
+=== CI
+
+GitHub Actions runs a lint job and then a converge matrix over Ubuntu 24.04 and
+26.04, invoking the same tasks:
+
+[source,yaml]
+----
+- run: uv run invoke setup
+- run: uv run invoke lint
+- run: uv run invoke syntax
+- run: uv run invoke converge --ubuntu ${{ matrix.ubuntu }}
+----
+
+CI has no vault password. Tasks that consume secrets carry the `secrets` tag and
+are excluded there; converge runs instead use `tests/vars.ci.yml`, a file of
+obviously-fake values that exercises the same code paths. This is deliberate:
+placing a real vault password in CI would contradict <<vault>>.
+
+== WSL specifics
+
+* `/etc/wsl.conf` — hostname, `systemd=true`, `appendWindowsPath`, automount
+  options. Changing it requires `wsl --shutdown` to take effect; the `wsl` role
+  prints a reminder when it changes the file.
+* `appendWindowsPath` defaults to `false` here, to avoid Windows binaries
+  shadowing Linux ones. Interop stays on, so `powershell.exe` remains reachable
+  by full path.
+* Windows interop — `/mnt/c` is available but slow; keep repositories on the
+  Linux filesystem.
+* SSH agent — optionally bridged to the Windows agent instead of running a
+  second agent inside WSL.
+* Clipboard — `clip.exe` / `win32yank` for editor integration.
+
+== Documentation
+
+All documentation in this repository is written in AsciiDoc (`.adoc`).
+
+[source,bash]
+----
+uv run invoke docs
+----
+
+Output lands in `build/docs/`. `asciidoctor` is Ruby, not a Python package — it
+is preinstalled in the devcontainer.
+
+== License
+
+TODO: choose a license. See <<roadmap>>.

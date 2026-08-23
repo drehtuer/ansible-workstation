@@ -1,0 +1,263 @@
+= CLAUDE.adoc — working agreements for ansible-workstation
+:toc: left
+:toclevels: 2
+:sectnums:
+:source-highlighter: rouge
+
+Guidance for Claude Code and other AI assistants working in
+`ansible-workstation`. Read together with link:../README.adoc[README.adoc],
+which describes *what* the project does and where it currently stands; this file
+describes *how* to change it.
+
+== What this repository is
+
+Ansible playbooks that provision a *personal WSL workstation* — Ubuntu 24.04 and
+26.04 — with the user's tools, dotfiles, shell, editors and language toolchains.
+An opt-in second part configures the Windows host through WSL interop.
+
+It is *not* server configuration management; that lives in a separate `ansible`
+repository. Do not add services, daemons, systemd units that listen on ports,
+reverse proxies, databases, or monitoring. If a task would make the machine
+serve something to the network, stop and ask.
+
+== Orientation
+
+Before changing anything, read `README.adoc` sections *Current state* and
+*Roadmap*. They record what exists, what has actually been verified, and what
+was deliberately decided against. Keep both current: they are the handover
+document when this repository is reopened after a break.
+
+Lint and converge are both green: `ansible-lint` (production profile),
+`yamllint`, `ruff`, and a two-pass converge on Ubuntu 24.04 and 26.04 reporting
+`changed=0`.
+
+What that does *not* cover, and what you must not claim works: the playbook has
+never run on a real WSL machine. Containers run as root with the `secrets` tag
+skipped, so `become` against a real sudo prompt, the vault path end to end, and
+all of `roles/windows` remain untested.
+
+== Decisions already made
+
+Do not relitigate these. Each was considered and settled; the reasoning lives in
+`README.adoc`.
+
+[cols="1,2", options="header"]
+|===
+| Decision | Rationale lives in
+
+| Invoke (`tasks.py`), never a Makefile
+| README, _Testing_
+
+| `uv` + `pyproject.toml`, non-packaging (`package = false`)
+| README, _Python project layout_
+
+| `ruff` for all Python, configured in `pyproject.toml`
+| README, _Python code quality_
+
+| Work/private separated by *forking*, not by profiles or branches
+| README, _Work and private separation_
+
+| One vault, one password file at `~/.config/ansible/vault_pass`
+| README, _Secrets and Ansible Vault_
+
+| The repository is *public on purpose* — it forces the no-plaintext rule
+| README, _This repository is public, on purpose_
+
+| No dotfile manager — plain Ansible modules
+| README, _Dotfiles_
+
+| No Molecule — `invoke converge` drives a container directly
+| README, _Roadmap / Deferred_
+
+| Devcontainer is for authoring and tests only, never for provisioning
+| README, _Devcontainer_
+
+| `scripts/install-uv.sh` is standalone and shared by host + devcontainer
+| README, _Bootstrapping_
+|===
+
+== Non-negotiable rules
+
+=== Secrets
+
+[IMPORTANT]
+====
+This repository is *public*: https://github.com/drehtuer/ansible-workstation
+
+Treat every plaintext file here as world-readable, because it is. GitHub is
+untrusted infrastructure. The public setting is a deliberate control — it makes
+"nothing sensitive in plaintext" unambiguous — so do not propose making it
+private as a way to relax any rule below.
+====
+
+. Never print, echo, `cat`, or otherwise reveal the vault password — not in a
+  command, not in a tool result, not in a commit, not in a comment.
+. Never write the vault password into a file inside the repository, into
+  `ansible.cfg` as a literal, into a shell command, or into CI configuration.
+  The password file lives at `~/.config/ansible/vault_pass` and nowhere else.
+. Never decrypt the vault to disk. Use `invoke vault-edit`, which edits in place.
+  If a decrypted copy is unavoidable, it goes outside the repository and is
+  deleted immediately.
+. Never commit plaintext where a `vault_*` variable belongs. Real e-mail
+  addresses, tokens, account names, private/internal URLs, SSH keys and license
+  keys are secrets even when they look harmless.
+. Any task that consumes a secret sets `no_log: true`, carries the `secrets`
+  tag, and writes files with `mode: "0600"`.
+. Do not run playbooks with `-vvv` when secrets are in scope; verbose output
+  expands variable values.
+. When adding a secret, add *both* halves: `vault_<name>` in `vault.yml` and the
+  plain reference in `inventory/group_vars/all/vars.yml`. Add the placeholder to
+  `vault.yml.example` too, or the next `vault-init` will be incomplete.
+
+=== Work / private separation
+
+* Separation is achieved by forking this repository, not by profiles inside it.
+  Do not add `group_vars/work/`, profile groups in the inventory, or a second
+  vault identity.
+* Never commit a work-specific value here. This repository is the public
+  upstream; changes flow upstream → fork, never back. Anything internal is
+  disqualified from this repository by the fact that it is public.
+
+=== Documentation
+
+* All documentation is AsciiDoc (`.adoc`). Do not add Markdown documentation
+  files. The single exception is `.claude/CLAUDE.md`, a stub that exists only
+  because the Claude Code loader recognises `.md`.
+* Update `README.adoc` in the same change that alters layout, commands, or the
+  variable model. Documentation drift counts as an incomplete change.
+* When a roadmap item is finished, move it out of *Roadmap* and into *Current
+  state*. When something is decided against, record it under *Deferred / decided
+  against* with the reason — that list exists so the same idea is not proposed
+  twice.
+
+=== Scope
+
+* Prefer changing an existing role over adding a new one. A new role needs a
+  distinct concern, not just a distinct package.
+* Do not introduce a new package manager, dotfile manager, or abstraction layer
+  without asking first.
+* Do not add a CI-only command. If CI runs it, it is an `invoke` task in
+  `tasks.py` that works locally too.
+
+== Task runner
+
+* `tasks.py` (Invoke) is the only entry point for checks. Adding a check means
+  adding a task, not a shell snippet in CI or in the README.
+* The task runner never reads the vault password — it passes the *path* via
+  `--vault-password-file`, and only when that file exists. Preserve that
+  property.
+* `ansible.cfg` must not gain `vault_password_file`: a missing file named there
+  breaks lint, syntax checks and CI on machines that hold no secrets. The
+  conditional flag in `tasks.py` exists for that reason.
+
+== Python environment
+
+* The toolchain lives in the project-local `.venv`, created by `uv sync` from
+  `uv.lock`. Never install into the system Python — Ubuntu 24.04+ refuses it
+  under PEP 668 anyway.
+* Run Ansible as `uv run ansible-playbook …`, or with `.venv` activated.
+* `pyproject.toml` declares Python dependencies and the `ruff` configuration.
+  `ansible-core` is a runtime dependency; `ansible-lint`, `yamllint`, `ruff` and
+  `invoke` belong to the `dev` dependency group.
+* Galaxy collections belong in `requirements.yml`, never in `pyproject.toml`.
+* After changing dependencies: run `invoke lock` and commit both `uv.lock` and
+  `requirements.txt`.
+* Ansible tool configuration is not consolidated into `pyproject.toml` —
+  `ansible-lint` reads `.ansible-lint`, `yamllint` reads `.yamllint`. Leave them
+  there. Only `ruff` is configured in `pyproject.toml`.
+* All Python — `tasks.py` and `scripts/*.py` — must pass `ruff check` and
+  `ruff format --check`. Fix findings; do not add a blanket `# noqa`. If a rule
+  genuinely does not fit, narrow it in `[tool.ruff.lint.per-file-ignores]` with a
+  comment saying why.
+* Use type hints and a docstring on every task and helper.
+
+== Shell scripts
+
+* `scripts/install-uv.sh` must stay standalone: no dependency on this
+  repository's layout, idempotent, and working both as root and unprivileged.
+  Three callers rely on that — a bare WSL distro, `bootstrap.sh`, and the
+  devcontainer build.
+* `set -euo pipefail` at the top of every script.
+* Prefer `dpkg-query` checks over blind `apt-get install` so re-runs stay quiet.
+
+== Ansible conventions
+
+Targets::
+Always `localhost` with `connection: local`. There is no SSH inventory, and
+Windows is reached through interop, not WinRM.
+
+Idempotency::
+Every task must be safe to run repeatedly. A second run reports `changed=0`.
+Use modules, not `shell`/`command`. When a shell call is unavoidable, guard it
+with `creates:`, `removes:`, or a `changed_when:` that reflects reality — never
+leave the default "always changed". This applies to `powershell.exe` calls too:
+check current state first, act only on drift.
+
+Naming::
+* Task names: imperative and specific — `Install zsh`, not `zsh`.
+* Role variables are prefixed with the role name: `shell_default_shell`.
+* Files and directories: `snake_case`.
+
+Structure::
+* One concern per role; roles expose defaults in `defaults/main.yml`.
+* Every role is tagged with its own name so `--tags <role>` works.
+* Package lists live in variables, not inline in tasks.
+
+Privilege::
+`become: true` only on the tasks that need it, never blanket at play level.
+
+Distribution support::
+Both Ubuntu 24.04 and 26.04 must work. When they differ, branch on
+`ansible_distribution_version` — never on a hardcoded codename in a URL without
+a variable behind it.
+
+Booleans and quoting::
+`true`/`false` lowercase; quote file modes as strings (`"0644"`).
+
+== Windows tasks
+
+* Everything Windows-related is gated behind `manage_windows` (default `false`)
+  and lives in `playbooks/windows.yml` / `roles/windows/`. It is never part of a
+  default `site.yml` run.
+* Prefer `winget` user-scope installs. Chocolatey needs elevation, which WSL
+  interop cannot obtain silently — it raises an interactive UAC prompt. Anything
+  Chocolatey-based carries the `interactive` tag, and the task name says so.
+* POSIX modes do not apply on NTFS. Files that need restrictive permissions —
+  SSH keys above all — must have their ACLs set with `icacls`; a `mode:` on a
+  `/mnt/c` path is meaningless.
+* Resolve Windows paths at runtime via `powershell.exe` and `wslpath`; do not
+  hardcode `/mnt/c/Users/<name>`.
+
+== Devcontainer
+
+* It exists for non-Python tooling: `asciidoctor`, `gh`, and a docker socket for
+  converge tests. `uv` comes from `scripts/install-uv.sh`, the same path the
+  host uses — do not replace that with a `COPY --from` of an upstream image.
+* `~/.claude` is bind-mounted read-write, `~/.ssh` read-only. Do not make
+  `~/.ssh` writable without saying why in the same change.
+* Never write instructions implying the playbook is executed from inside the
+  devcontainer against the user's machine. A container cannot provision its own
+  host.
+
+== Definition of done
+
+Before reporting a change complete:
+
+[source,bash]
+----
+uv run invoke lint
+uv run invoke syntax
+----
+
+and, when a role's behaviour changed, `uv run invoke converge` for both Ubuntu
+targets — the second pass must report `changed=0`.
+
+If a check cannot be run, say so explicitly rather than implying it passed.
+
+== Git
+
+* Branch off `main`; do not commit or push unless asked.
+* Conventional-commit style subjects: `feat(shell): add starship prompt`.
+* Before committing, verify the vault is not staged in plaintext and no
+  password-shaped file is included. `pre-commit` enforces this; do not bypass it
+  with `--no-verify`.

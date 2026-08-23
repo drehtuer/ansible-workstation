@@ -1,0 +1,30 @@
+---
+# Dotfiles are managed with plain ansible modules on purpose.  See README:
+# a dedicated dotfile manager would add a second templating syntax and a second
+# source of truth without adding a capability ansible lacks.
+
+- name: Ensure dotfile directories exist
+  ansible.builtin.file:
+    path: "{{ dotfiles_home }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ dotfiles_directories }}"
+
+- name: Install static dotfiles
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ dotfiles_home }}/{{ item.dest }}"
+    mode: "{{ item.mode | default('0644') }}"
+  loop: "{{ dotfiles_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Install templated dotfiles
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ dotfiles_home }}/{{ item.dest }}"
+    mode: "{{ item.mode | default('0644') }}"
+  loop: "{{ dotfiles_templates }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  no_log: "{{ item.secret | default(false) }}"

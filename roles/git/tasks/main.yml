@@ -1,0 +1,30 @@
+---
+- name: Install git
+  become: true
+  ansible.builtin.apt:
+    name: "{{ git_packages }}"
+    state: present
+
+- name: Configure git identity
+  community.general.git_config:
+    name: "{{ item.name }}"
+    scope: global
+    value: "{{ item.value }}"
+  loop:
+    - {name: "user.name", value: "{{ git_user_name }}"}
+    - {name: "user.email", value: "{{ git_user_email }}"}
+    - {name: "init.defaultBranch", value: "{{ git_default_branch }}"}
+    - {name: "core.editor", value: "{{ git_editor }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  tags: [secrets]
+
+- name: Configure the git signing key
+  community.general.git_config:
+    name: user.signingkey
+    scope: global
+    value: "{{ git_signing_key }}"
+  when: git_signing_key | length > 0
+  no_log: true
+  tags: [secrets]

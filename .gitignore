@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Ansible
+.ansible/
+*.retry
+
+# Vault passwords must never live inside the repository
+vault_pass*
+*.vault_pass
+.vault_password*
+*.decrypted.yml
+.env
+
+# Build output
+build/

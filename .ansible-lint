@@ -1,0 +1,10 @@
+---
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .ansible/
+  - .github/
+
+warn_list:
+  - experimental

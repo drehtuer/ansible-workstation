@@ -1,0 +1,28 @@
+---
+repos:
+  - repo: local
+    hooks:
+      - id: vault-encrypted
+        name: vault files are encrypted, no password files staged
+        entry: python3 scripts/check_vault_encrypted.py
+        language: system
+        pass_filenames: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint

@@ -1,0 +1,39 @@
+---
+- name: Provision WSL workstation
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  pre_tasks:
+    - name: Assert a supported Ubuntu release
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version in supported_ubuntu_releases
+        fail_msg: >-
+          Unsupported platform {{ ansible_distribution }}
+          {{ ansible_distribution_version }};
+          supported: {{ supported_ubuntu_releases | join(', ') }}
+      vars:
+        supported_ubuntu_releases:
+          - "24.04"
+          - "26.04"
+      tags: [always]
+
+  roles:
+    - role: wsl
+      tags: [wsl]
+    - role: base
+      tags: [base]
+    - role: shell
+      tags: [shell]
+    - role: git
+      tags: [git]
+    - role: editor
+      tags: [editor]
+      when: enable_editor | bool
+    - role: languages
+      tags: [languages]
+      when: enable_languages | bool
+    - role: dotfiles
+      tags: [dotfiles]

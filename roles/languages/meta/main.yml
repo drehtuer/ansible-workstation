@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: drehtuer
+  description: "languages configuration for a WSL workstation"
+  license: MIT
+  min_ansible_version: "2.18"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+  galaxy_tags:
+    - wsl
+    - workstation
+
+dependencies: []
