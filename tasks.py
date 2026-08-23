@@ -19,6 +19,10 @@ UBUNTU_TARGETS = ["24.04", "26.04"]
 VAULT_PASSWORD_FILE = Path.home() / ".config" / "ansible" / "vault_pass"
 VAULT_FILE = ROOT / "inventory" / "group_vars" / "all" / "vault.yml"
 
+ANTORA_PLAYBOOK = "antora-playbook.yml"
+NODE_MODULES = ROOT / "node_modules"
+SITE_DIR = ROOT / "build" / "site"
+
 
 def vault_args() -> str:
     """Return the vault flag, but only when a password file actually exists.
@@ -133,20 +137,27 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     )
 
 
-@task
-def docs(c: Context) -> None:
-    """Render every AsciiDoc file to HTML."""
-    if shutil.which("asciidoctor") is None:
+@task(help={"fetch": "Re-download the UI bundle instead of reusing the cache."})
+def site(c: Context, fetch: bool = False) -> None:
+    """Build the documentation site with Antora.
+
+    Antora reads the *worktree*, so uncommitted documentation is part of the
+    build.  A broken xref or an unresolved include fails the task, which is
+    what makes this worth running in CI.
+    """
+    if shutil.which("npm") is None:
         raise Exit(
-            "asciidoctor is not installed (available in the devcontainer)",
+            "npm is required to build the site "
+            "(Node.js; preinstalled in the devcontainer)",
             code=2,
         )
-    outdir = ROOT / "build" / "docs"
-    outdir.mkdir(parents=True, exist_ok=True)
-    for adoc in sorted(ROOT.glob("*.adoc")) + sorted(
-        (ROOT / "docs").glob("*.adoc")
-    ):
-        c.run(f"asciidoctor -D {outdir} {adoc}", pty=True)
+    if not NODE_MODULES.is_dir():
+        c.run("npm ci", pty=True)
+    c.run(
+        f"npx antora{' --fetch' if fetch else ''} {ANTORA_PLAYBOOK}",
+        pty=True,
+    )
+    print(f"site written to {SITE_DIR}", file=sys.stderr)
 
 
 def require_password_file() -> Path:
@@ -196,7 +207,7 @@ def vault_init(c: Context) -> None:
     )
 
 
-@task(name="all", pre=[lint, syntax])
+@task(name="all", pre=[lint, syntax, site])
 def run_all(c: Context) -> None:
     """Run everything CI runs, for every Ubuntu target."""
     for ubuntu in UBUNTU_TARGETS:

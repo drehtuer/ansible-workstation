@@ -1,0 +1,10 @@
+{
+  "name": "ansible-workstation-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Antora documentation site for ansible-workstation",
+  "devDependencies": {
+    "@antora/cli": "3.1.15",
+    "@antora/site-generator": "3.1.15"
+  }
+}

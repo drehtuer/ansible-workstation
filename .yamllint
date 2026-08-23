@@ -19,3 +19,5 @@ rules:
 ignore: |
   .venv/
   .ansible/
+  node_modules/
+  build/
