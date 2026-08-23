@@ -33,13 +33,19 @@ def main(argv: list[str]) -> int:
             continue
 
         if looks_like_password_file(path):
-            problems.append(f"{path}: looks like a vault password file and must never be committed")
+            problems.append(
+                f"{path}: looks like a vault password file and must "
+                "never be committed"
+            )
             continue
 
         if is_vault_file(path):
             first_line = path.read_text(errors="replace").partition("\n")[0]
             if not first_line.startswith(VAULT_HEADER):
-                problems.append(f"{path}: is not encrypted (expected a {VAULT_HEADER} header)")
+                problems.append(
+                    f"{path}: is not encrypted "
+                    f"(expected a {VAULT_HEADER} header)"
+                )
 
     for problem in problems:
         print(f"error: {problem}", file=sys.stderr)

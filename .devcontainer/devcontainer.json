@@ -2,7 +2,8 @@
   "name": "ansible-workstation",
   "build": {
     "dockerfile": "Dockerfile",
-    // Context is the repository root so the image can reuse scripts/install-uv.sh.
+    // Context is the repository root so the image can reuse
+    // scripts/install-uv.sh.
     "context": ".."
   },
   "features": {
@@ -11,7 +12,7 @@
   "mounts": [
     // Claude Code state and credentials, shared with the host.  Read-write:
     // Claude Code writes session data, and changes should persist.
-    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
     // SSH keys, mounted READ-ONLY on purpose: the container needs them to sign
     // commits and push, but nothing in here should ever modify your keys.
     // Consequence: ssh cannot append to known_hosts, so a first connection to
@@ -19,12 +20,13 @@
     // the WSL side, or drop ",readonly" if that becomes tedious.
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
-  "postCreateCommand": "uv sync && uv run ansible-galaxy install -r requirements.yml",
+  "postCreateCommand": "./scripts/bootstrap.sh",
   "remoteUser": "vscode",
   "customizations": {
     "vscode": {
       "extensions": [
         "redhat.ansible",
+        "editorconfig.editorconfig",
         "charliermarsh.ruff",
         "asciidoctor.asciidoctor-vscode"
       ]

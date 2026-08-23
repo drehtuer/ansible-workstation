@@ -45,7 +45,11 @@
       - >-
         icacls "$env:USERPROFILE\{{ item.dest | replace('/', '\\') }}"
         /inheritance:r /grant:r "$env:USERNAME:(F)"
-  loop: "{{ windows_files | selectattr('restrict_acl', 'defined') | selectattr('restrict_acl') | list }}"
+  loop: >-
+    {{ windows_files
+    | selectattr('restrict_acl', 'defined')
+    | selectattr('restrict_acl')
+    | list }}
   loop_control:
     label: "{{ item.dest }}"
   changed_when: true

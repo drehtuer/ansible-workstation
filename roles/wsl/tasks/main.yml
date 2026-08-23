@@ -9,10 +9,18 @@
     mode: "0644"
     no_extra_spaces: true
   loop:
-    - {section: network, option: hostname, value: "{{ wsl_hostname }}"}
-    - {section: boot, option: systemd, value: "{{ wsl_systemd_enabled | lower }}"}
-    - {section: interop, option: appendWindowsPath, value: "{{ wsl_append_windows_path | lower }}"}
-    - {section: automount, option: options, value: "{{ wsl_automount_options }}"}
+    - section: network
+      option: hostname
+      value: "{{ wsl_hostname }}"
+    - section: boot
+      option: systemd
+      value: "{{ wsl_systemd_enabled | lower }}"
+    - section: interop
+      option: appendWindowsPath
+      value: "{{ wsl_append_windows_path | lower }}"
+    - section: automount
+      option: options
+      value: "{{ wsl_automount_options }}"
   loop_control:
     label: "{{ item.section }}.{{ item.option }}"
   notify: Report wsl.conf change
