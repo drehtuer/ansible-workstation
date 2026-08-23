@@ -14,9 +14,19 @@ VAULT_HEADER = "$ANSIBLE_VAULT"
 PASSWORD_NAME_HINTS = ("vault_pass", "vault-pass", ".vault_password")
 
 
+VAULT_DIRS = ("group_vars", "host_vars")
+
+
 def is_vault_file(path: Path) -> bool:
-    """True for files this repository requires to be encrypted."""
-    return path.name == "vault.yml" and "group_vars" in path.parts
+    """True for files this repository requires to be encrypted.
+
+    Both the shared vault under ``group_vars/`` and a machine's own vault
+    under ``host_vars/<hostname>/`` are covered; the ``.example`` templates
+    beside them are not vaults and are left alone.
+    """
+    return path.name == "vault.yml" and any(
+        part in VAULT_DIRS for part in path.parts
+    )
 
 
 def looks_like_password_file(path: Path) -> bool:

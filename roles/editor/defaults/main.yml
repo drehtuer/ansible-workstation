@@ -1,3 +1,34 @@
 ---
+# The archive's neovim trails upstream by a release or more, so it comes from
+# the project's own PPA.  Set editor_neovim_from_ppa to false to stay on the
+# distribution package instead.
+editor_neovim_from_ppa: true
+editor_neovim_ppa_uri: >-
+  https://ppa.launchpadcontent.net/neovim-ppa/unstable/ubuntu
+editor_neovim_keyring: /etc/apt/keyrings/neovim-ppa.asc
+# The PPA's signing key ships with the role, in files/.  It is public data --
+# a keyring, not a secret -- and having it in the repository means
+# provisioning does not depend on a keyserver being reachable, or on it
+# answering byte-for-byte the same twice.  Refresh it with:
+#
+#   curl -sS "https://keyserver.ubuntu.com/pks/lookup?op=get\
+#   &search=0x9DBB0BE9366964F134855E2255F96FCF8231B6DD" \
+#     -o roles/editor/files/neovim_ppa.asc
+#
+# and check the fingerprint before committing:
+#
+#   gpg --show-keys roles/editor/files/neovim_ppa.asc
+#   # 9DBB 0BE9 3669 64F1 3485  5E22 55F9 6FCF 8231 B6DD
+editor_neovim_key_file: neovim_ppa.asc
+
 editor_packages:
+  - neovim
+
+# `vi` and `vim` are alternatives, so pointing them at nvim keeps the
+# packages that own those names installable, and the change reversible with
+# `update-alternatives --config vi`.  Ubuntu's own entries sit at 30 or below.
+editor_alternatives:
+  - vi
   - vim
+editor_alternatives_priority: 110
+editor_nvim_path: /usr/bin/nvim

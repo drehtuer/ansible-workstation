@@ -47,15 +47,16 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   (project virtualenv + Galaxy content).
 
 | Inventory
-| Single host `localhost`, single vault at
-  `inventory/group_vars/all/vault.yml`.
+| One host: this machine, under its own name (`inventory/hosts.py`). A vault
+  shared by every machine, plus one per machine under `host_vars/`.
 
 | Playbooks
 | `playbooks/site.yml` (Linux) and `playbooks/windows.yml` (opt-in).
 
 | Roles
-| `wsl`, `base`, `shell`, `git`, `editor`, `languages`, `dotfiles`, `windows` —
-  all wired up and lintable, each installing a minimal package set.
+| `wsl`, `base`, `shell`, `git`, `editor`, `docker`, `fonts`, `languages`,
+  `dotfiles`, `windows`. All but `languages` and `dotfiles` install the real
+  toolset — see <<toolset>>.
 
 | Secret handling
 | Vault indirection, `secrets` tag, `no_log`, pre-commit guard, `.gitattributes`
@@ -90,6 +91,14 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 * `scripts/install-uv.sh` provisions a clean Ubuntu 24.04 container end to end.
 * `invoke site` builds the documentation site without a warning, from a normal
   checkout and from the detached, shallow checkout CI produces.
+* The vault path, end to end in a container: `invoke vault-init --host`
+  writes an encrypted vault for the machine the inventory named,
+  `invoke vault-edit --host` edits it in place, and a run with the password
+  file decrypts it and adds that account to the `docker` group. A machine
+  with no vault of its own fails with a message naming the host and not the
+  account; a vault naming an account that does not exist fails *without*
+  creating it; `--skip-tags secrets` skips all of it; and the pre-commit
+  guard rejects the same file left in plaintext.
 * Markdown reaches the site: a `.md` page inside the component and a `.md`
   file lent from the repository root both render, and a missing `kramdoc`
   fails the build with a message naming the gem.
@@ -100,27 +109,39 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   `main` as its only version.
 * `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
   reports `changed=0`, so the roles are observably idempotent.
+* The toolset arrives, checked inside a converged container: every requested
+  binary is on `PATH`, `vi` and `vim` both resolve to `/usr/bin/nvim`, neovim
+  is the PPA build rather than the archive's, `docker buildx` and `docker
+  compose` answer, and 18 Fira Code Nerd Font faces are registered with
+  fontconfig reporting `calt on` for them.
 * Python syntax, shell syntax, YAML/JSON parsing, and the vault guard's own
   behaviour.
 
 .What is not verified
 The playbook has never run on a *real* WSL machine — only in containers, as
-root, with the `secrets` tag skipped. Three things are therefore still untested:
-`become` against a real sudo prompt, the vault path end to end, and everything
-in `roles/windows`, which needs a Windows host and cannot run in CI at all.
+root, with the `secrets` tag skipped. Still untested:
+
+* `become` against a real sudo prompt
+* everything in `roles/windows`, which needs a Windows host and cannot run in
+  CI at all
+* enabling the docker service, which is skipped where systemd is not the init
+  system, and a container has no init at all
 
 [#roadmap]
 == Roadmap
 
 Ordered roughly by dependency.
 
-. *Fill in the roles.* Every `roles/*/defaults/main.yml` currently holds a
-  placeholder package list. Replace with the real toolset.
+. *Fill in the remaining roles.* `languages` and `dotfiles` still hold
+  placeholder lists; every other role now carries the real toolset,
+  see <<toolset>>.
 . *Create the vault.* `invoke vault-init`, then move the git identity into it.
 . *Dotfiles content.* `dotfiles_files` and `dotfiles_templates` are empty lists;
   add the actual files under `roles/dotfiles/{files,templates}/`.
 . *Windows side.* `roles/windows` has working task shapes but empty inputs —
-  populate `windows_files`, `windows_fonts`, `windows_winget_packages`.
+  populate `windows_files`, `windows_fonts`, `windows_winget_packages`. The
+  Fira Code Nerd Font belongs in `windows_fonts`: it is installed inside WSL
+  today, which the terminals running on Windows do not see.
 . *Fork for work.* Once the personal setup is stable, fork to the internal host
   (see <<separation>>).
 . *Pick a license.*
@@ -295,7 +316,7 @@ as owned by someone else and `updateRemoteUserUID` needs attention.
 ====
 A devcontainer cannot provision the WSL host it runs in — a container is
 isolated from its host by design. Real provisioning runs happen in the WSL
-distro against `localhost`. The devcontainer is for authoring, linting, docs and
+distro against itself. The devcontainer is for authoring, linting, docs and
 throwaway converge tests only.
 ====
 
@@ -321,12 +342,15 @@ throwaway converge tests only.
 ├── package-lock.json
 ├── ansible.cfg
 ├── inventory/
-│   ├── hosts.yml              <11>
+│   ├── hosts.py               <11>
 │   ├── group_vars/all/
 │   │   ├── vars.yml
 │   │   ├── vault.yml          <12>
 │   │   └── vault.yml.example
 │   └── host_vars/
+│       ├── vault.yml.example
+│       └── <hostname>/
+│           └── vault.yml      <12>
 ├── playbooks/
 │   ├── site.yml               <13>
 │   └── windows.yml            <14>
@@ -366,7 +390,7 @@ throwaway converge tests only.
 <9> Antora site definition, see <<documentation>>.
 <10> Pins Antora. It is a documentation dependency; nothing the playbooks
      install needs Node.
-<11> Always `localhost`, `connection: local`.
+<11> Reports one host — this machine, by name — with `connection: local`.
 <12> Encrypted. Created from the example by `invoke vault-init`.
 <13> Entry point for the Linux/WSL side.
 <14> Windows-side configuration, opt-in.
@@ -411,7 +435,7 @@ Variables are layered, lowest to highest precedence:
 
 . `roles/<role>/defaults/main.yml` — sane defaults, safe to override
 . `inventory/group_vars/all/vars.yml` — repository-wide choices
-. `inventory/host_vars/<hostname>.yml` — machine-specific overrides
+. `inventory/host_vars/<hostname>/*.yml` — this machine only
 . `--extra-vars` — one-off runs
 
 Secrets never appear directly in a role. A role references a plain variable, the
@@ -434,6 +458,184 @@ vault_git_user_email: "…"
 This keeps `grep -r vault_ inventory/` a complete inventory of what is secret,
 and lets the playbook fail loudly when the vault is missing instead of silently
 templating an empty string.
+
+[#per-machine]
+=== Values that differ per machine
+
+Ansible resolves `host_vars/` by *inventory* hostname, so a static inventory
+would have to write that name down — and the only name true on every machine
+is `localhost`, at which point every workstation sharing this repository
+reads the same file. `inventory/hosts.py` reports the machine's real name
+instead:
+
+[source,bash]
+----
+$ ansible-inventory --list | jq '.ungrouped.hosts'
+[ "thinkpad" ]
+----
+
+The names are discovered, never committed: nothing in this repository says
+what your machines are called until you add a directory for one.
+
+The login account is the first value that differs per machine. It is also
+user-identifying, so it lives in that machine's *own* vault:
+
+[source]
+----
+inventory/host_vars/
+├── vault.yml.example       <1>
+├── thinkpad/
+│   └── vault.yml           <2>
+└── desktop/
+    └── vault.yml
+----
+<1> The template `invoke vault-init --host` copies.
+<2> Encrypted, with the same password as every other vault here.
+
+.inventory/host_vars/<hostname>/vault.yml (encrypted)
+[source,yaml]
+----
+vault_workstation_user: "some-account"
+----
+
+.inventory/group_vars/all/vars.yml
+[source,yaml]
+----
+workstation_user: "{{ vault_workstation_user | default('') }}"
+----
+
+[source,bash]
+----
+uv run invoke vault-init --host    # create this machine's vault
+uv run invoke vault-edit --host    # edit it in place
+----
+
+A machine without one gets an empty string, and the roles that need the
+account say so rather than guessing: the `docker` role asserts before it
+touches group membership, naming the host and pointing at the command that
+fixes it. Deriving the name from `ansible_user_id` instead would quietly
+provision whichever account happened to run the playbook.
+
+[#toolset]
+== What gets installed
+
+Packages live with the concern that owns them rather than in one list, so
+`--tags` selects something meaningful and a package's reason for existing is
+visible from where it sits.
+
+[cols="1,3", options="header"]
+|===
+| Role | Installs
+
+| `base`
+| An apt cache refresh and a `safe` upgrade, then the system utilities:
+  `aptitude`, `ascii`, `bash`, `build-essential`, `ca-certificates`, `curl`,
+  `htop`, `iputils-ping`, `jq`, `less`, `man-db`, `net-tools`, `rsync`,
+  `software-properties-common`, `sudo`, `tree`, `unzip`, `wget`, `xxd`
+
+| `shell`
+| `bash-completion`, `fzf`, `ripgrep`, `screen`, `tmux`, and the login shell
+
+| `git`
+| `git` plus the forge CLIs `gh` and `glab`, and the global git configuration
+
+| `editor`
+| `neovim` from the upstream PPA, and the `vi` / `vim` alternatives
+
+| `docker`
+| `docker.io`, `docker-buildx`, `docker-compose-v2`, and group membership
+
+| `fonts`
+| Fira Code Nerd Font, with ligatures enabled through fontconfig
+|===
+
+Everything except neovim and the font comes from the Ubuntu archive — `gh`
+and `glab` included, which is why this repository adds exactly one apt source
+and not four. The archive trails upstream by a release or two; that is the
+price of not maintaining four keyrings.
+
+=== Updating the base system
+
+`base` refreshes the apt cache and then upgrades what is installed:
+
+[source,bash]
+----
+uv run invoke apply --tags upgrade   # just the upgrade
+uv run invoke apply --tags base      # upgrade and the base packages
+----
+
+`base_upgrade_type` is `safe`, which never removes a package to satisfy an
+upgrade; `full` is allowed to. Set `base_upgrade: false` on a machine where
+updates are applied by hand.
+
+This is the one task that legitimately reports *changed* on a converged host:
+a machine that has been running for a week has updates waiting, and saying
+otherwise would be a lie. Two runs back to back are still a no-op.
+
+=== neovim, and the vi/vim alternatives
+
+The archive's neovim trails upstream by a release or more, so it comes from
+`ppa:neovim-ppa/unstable`, which builds for both supported releases. Set
+`editor_neovim_ppa: ""` to stay on the archive package instead.
+
+`vi` and `vim` are then pointed at `nvim` through *alternatives*, at priority
+110 against Ubuntu's 30 and below:
+
+[source,bash]
+----
+update-alternatives --query vi        # what is registered
+update-alternatives --config vi       # switch back by hand
+----
+
+Alternatives rather than symlinks: installing `vim` later stays possible, the
+package manager never fights over the file, and the change is reversible with
+one command. `git_editor` defaults to `nvim` for the same reason.
+
+=== Docker
+
+`docker.io` is the engine as Ubuntu ships it, with `docker-buildx` and
+`docker-compose-v2` as its CLI plugins — `docker build` and `docker compose`
+therefore work without Docker's own apt repository.
+
+The account added to the group is `workstation_user`, which comes from the
+vault keyed by hostname — see <<per-machine>>. A host that is not in that map
+fails the run with a message naming it, instead of adding a guessed account.
+
+[CAUTION]
+====
+Membership in the `docker` group is equivalent to root on this machine:
+anyone in it can start a container that mounts `/`. That is the accepted
+trade on a single-user workstation, and `docker_manage_group: false` opts out
+of it.
+====
+
+The daemon is enabled only where systemd is the init system, which in WSL
+means `systemd=true` in `/etc/wsl.conf` — the `wsl` role sets that. Docker
+listens on a unix socket, not on a port, so it stays within
+<<state,what this repository provisions>>.
+
+=== The Fira Code Nerd Font
+
+Fira Code is the ligature-carrying family; FiraMono is the same design with
+the ligatures removed, so the archive to install is `FiraCode.zip`. The
+release is pinned to a version *and* a SHA-256, so a re-cut release cannot
+change what lands on the machine.
+
+Fonts install per user, under `~/.local/share/fonts` — no root involved. The
+ligatures themselves are drawn by the `calt` OpenType feature, which
+`~/.config/fontconfig/conf.d/50-ligatures.conf` turns on. That rule matches
+the family name as a *substring*, because fontconfig exposes every weight and
+variant as a family of its own: one entry for `FiraCode Nerd Font` therefore
+also covers `FiraCode Nerd Font Mono SemBd` and the other seventeen faces.
+
+[NOTE]
+====
+This installs the font *inside* WSL, which is what Linux GUI applications and
+WSLg see. A terminal running on Windows — Windows Terminal, VS Code — reads
+fonts installed on *Windows*, and this does not touch those. The Windows-side
+copy belongs in `roles/windows` under `windows_fonts`, which is still empty
+and untested; see <<roadmap>>.
+====
 
 [#separation]
 == Work and private separation
@@ -494,7 +696,8 @@ What follows from that:
 
 === Rules
 
-. Anything user-identifying goes in the vault: e-mail addresses, account names,
+. Anything user-identifying goes in the vault: e-mail addresses, account names
+  — including the login account of each machine, see <<per-machine>> —
   tokens, SSH keys, internal/private URLs, license keys, proxy credentials.
   Assume every plaintext file in this repository is world-readable, because it
   is.
@@ -637,8 +840,8 @@ CI runs *those same tasks*. There is no CI-only command.
 | `invoke site`
 | Build the documentation site into `build/site/`
 
-| `invoke vault-init` / `invoke vault-edit`
-| Create or edit the vault; never decrypts to disk
+| `invoke vault-init [--host]` / `invoke vault-edit [--host]`
+| Create or edit a vault, shared or this machine's; never decrypts to disk
 
 | `invoke all`
 | `lint`, `syntax`, `site`, then converge on every supported Ubuntu release
@@ -719,6 +922,14 @@ CI has no vault password. Tasks that consume secrets carry the `secrets` tag and
 are excluded there; converge runs instead use `tests/vars.ci.yml`, a file of
 obviously-fake values that exercises the same code paths. This is deliberate:
 placing a real vault password in CI would contradict <<vault>>.
+
+Skipping the tasks is not enough on its own. Ansible decrypts vault files
+while it *loads variables*, long before it looks at tags, so an encrypted
+`vault.yml` anywhere under `inventory/` fails the whole run when no password
+exists. `invoke converge` therefore mounts the repository read-only, copies it
+aside inside the container, and deletes every `vault.yml` from the copy. The
+checkout is untouched, and CI keeps working the day the first real vault is
+committed.
 
 == WSL specifics
 

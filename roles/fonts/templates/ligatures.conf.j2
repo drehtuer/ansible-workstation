@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<!-- Managed by ansible-workstation, roles/fonts. -->
+<fontconfig>
+{% for family in fonts_ligature_families %}
+  <match target="font">
+    <test name="family" compare="contains">
+      <string>{{ family }}</string>
+    </test>
+    <edit name="fontfeatures" mode="append">
+      <string>calt on</string>
+    </edit>
+  </match>
+{% endfor %}
+</fontconfig>

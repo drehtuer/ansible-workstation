@@ -1,6 +1,54 @@
 ---
+- name: Configure the neovim PPA
+  when: editor_neovim_from_ppa | bool
+  become: true
+  block:
+    # deb822_repository is implemented on top of python3-debian, which
+    # Ubuntu does not install by default.  The role installs it rather than
+    # relying on `base`, so `--tags editor` works on its own.
+    - name: Install the deb822 apt source support
+      ansible.builtin.apt:
+        name: python3-debian
+        state: present
+
+    - name: Ensure the apt keyring directory exists
+      ansible.builtin.file:
+        path: "{{ editor_neovim_keyring | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Install the neovim PPA signing key
+      ansible.builtin.copy:
+        src: "{{ editor_neovim_key_file }}"
+        dest: "{{ editor_neovim_keyring }}"
+        mode: "0644"
+
+    - name: Add the neovim PPA
+      ansible.builtin.deb822_repository:
+        name: neovim-ppa
+        types: [deb]
+        uris: "{{ editor_neovim_ppa_uri }}"
+        suites: "{{ ansible_distribution_release }}"
+        components: [main]
+        signed_by: "{{ editor_neovim_keyring }}"
+        state: present
+
+# update_cache has no cache_valid_time on purpose: the source above may have
+# just been added, and a cache that is merely recent would not know about it.
+# The apt module reports a cache refresh separately from `changed`, so this
+# stays idempotent.
 - name: Install editor packages
   become: true
   ansible.builtin.apt:
     name: "{{ editor_packages }}"
     state: present
+    update_cache: true
+
+- name: Point the vi and vim alternatives at nvim
+  become: true
+  community.general.alternatives:
+    name: "{{ item }}"
+    link: "/usr/bin/{{ item }}"
+    path: "{{ editor_nvim_path }}"
+    priority: "{{ editor_alternatives_priority }}"
+  loop: "{{ editor_alternatives }}"

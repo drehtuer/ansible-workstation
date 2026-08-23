@@ -1,14 +1,32 @@
 ---
+# Everything a workstation needs before any specific tooling.  Packages that
+# belong to one concern live with that concern: multiplexers in `shell`, git
+# and the forge CLIs in `git`, neovim in `editor`, the container tooling in
+# `docker`.
 base_packages:
+  - aptitude
+  - ascii
+  - bash
   - build-essential
   - ca-certificates
   - curl
   - htop
+  - iputils-ping
   - jq
   - less
   - man-db
+  - net-tools
   - rsync
+  - software-properties-common
+  - sudo
   - tree
   - unzip
   - wget
+  - xxd
 base_apt_cache_valid_time: 3600
+
+# Bring already-installed packages up to date on every run.  "safe" never
+# removes a package to satisfy an upgrade; "full" is allowed to.  Set
+# base_upgrade to false on a machine where updates are applied by hand.
+base_upgrade: true
+base_upgrade_type: safe

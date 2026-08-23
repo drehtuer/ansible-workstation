@@ -11,6 +11,15 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Work on a copy, without the vaults.  CI holds no vault password, and an
+# encrypted file under group_vars/ or host_vars/ fails the run while
+# variables are being loaded -- long before --skip-tags secrets could matter.
+# tests/vars.ci.yml supplies obviously-fake values in their place.  The copy
+# also guarantees the container cannot write to the repository it came from.
+cp -a /repo /work
+cd /work
+find inventory -name vault.yml -delete
+
 echo "=== preparing container ==="
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv sudo git >/dev/null

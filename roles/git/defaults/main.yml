@@ -1,5 +1,9 @@
 ---
+# git itself plus the two forge CLIs.  Both come from the Ubuntu archive, so
+# no extra apt repository is needed; they trail upstream by a release or two.
 git_packages:
+  - gh
   - git
+  - glab
 git_default_branch: main
-git_editor: vim
+git_editor: nvim

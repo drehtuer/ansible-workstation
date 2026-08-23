@@ -1,0 +1,53 @@
+---
+- name: Install font tooling
+  become: true
+  ansible.builtin.apt:
+    name: "{{ fonts_packages }}"
+    state: present
+
+- name: Create the font and download directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ fonts_dir }}"
+    - "{{ fonts_cache_dir }}"
+    - "{{ fonts_fontconfig_dir }}"
+
+- name: Download the Nerd Fonts archives
+  ansible.builtin.get_url:
+    url: >-
+      {{ fonts_nerd_fonts_url }}/{{ fonts_nerd_fonts_version }}/{{
+      item.name }}.zip
+    dest: "{{ fonts_cache_dir }}/{{ item.name }}-{{
+      fonts_nerd_fonts_version }}.zip"
+    checksum: "sha256:{{ item.sha256 }}"
+    mode: "0644"
+  loop: "{{ fonts_nerd_fonts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Unpack the Nerd Fonts archives
+  ansible.builtin.unarchive:
+    src: "{{ fonts_cache_dir }}/{{ item.name }}-{{
+      fonts_nerd_fonts_version }}.zip"
+    dest: "{{ fonts_dir }}"
+    remote_src: true
+    creates: "{{ fonts_dir }}/{{ item.sentinel }}"
+    exclude:
+      - LICENSE
+      - README.md
+    mode: "0644"
+  loop: "{{ fonts_nerd_fonts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Rebuild the font cache
+
+- name: Enable the font ligatures
+  ansible.builtin.template:
+    src: ligatures.conf.j2
+    dest: "{{ fonts_fontconfig_dir }}/50-ligatures.conf"
+    mode: "0644"
+  when: fonts_enable_ligatures | bool
+  notify: Rebuild the font cache
