@@ -37,6 +37,11 @@ ui:
       HEAD/raw/build/ui-bundle.zip?job=bundle-stable"
     snapshot: true
 
+  # Files here overlay the bundle, which ships a demo navbar -- Products and
+  # Services dropdowns full of "Product A" placeholders.  The override drops
+  # them; see docs/supplemental-ui/partials/header-content.hbs.
+  supplemental_files: ./docs/supplemental-ui
+
 output:
   dir: ./build/site
 

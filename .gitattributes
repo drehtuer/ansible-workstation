@@ -8,3 +8,4 @@ inventory/group_vars/*/vault.yml diff=ansible-vault merge=binary
 *.adoc text eol=lf
 *.js   text eol=lf
 *.json text eol=lf
+*.hbs  text eol=lf
