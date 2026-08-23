@@ -1,5 +1,5 @@
 ---
-- name: Install git
+- name: Install git and the forge CLIs
   become: true
   ansible.builtin.apt:
     name: "{{ git_packages }}"

@@ -1,6 +1,6 @@
 ---
 - name: Provision WSL workstation
-  hosts: localhost
+  hosts: all
   connection: local
   gather_facts: true
 
@@ -32,6 +32,12 @@
     - role: editor
       tags: [editor]
       when: enable_editor | bool
+    - role: docker
+      tags: [docker]
+      when: enable_docker | bool
+    - role: fonts
+      tags: [fonts]
+      when: enable_fonts | bool
     - role: languages
       tags: [languages]
       when: enable_languages | bool

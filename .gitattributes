@@ -2,10 +2,12 @@
 # Enable once per clone:
 #   git config diff.ansible-vault.textconv "echo '<encrypted vault>'"
 inventory/group_vars/*/vault.yml diff=ansible-vault merge=binary
+inventory/host_vars/*/vault.yml diff=ansible-vault merge=binary
 
 *.sh   text eol=lf
 *.yml  text eol=lf
 *.adoc text eol=lf
 *.js   text eol=lf
+*.asc  text eol=lf
 *.json text eol=lf
 *.hbs  text eol=lf

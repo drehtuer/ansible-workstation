@@ -7,9 +7,17 @@ git_user_name: "{{ vault_git_user_name }}"
 git_user_email: "{{ vault_git_user_email }}"
 git_signing_key: "{{ vault_git_signing_key | default('') }}"
 
+# The login account of this machine.  It differs per machine and it is
+# user-identifying, so the value lives in that machine's own encrypted
+# host_vars file -- see README, "Values that differ per machine".  Empty when
+# there is none; the roles that need it say so rather than guessing.
+workstation_user: "{{ vault_workstation_user | default('') }}"
+
 # Windows-side configuration is opt-in and never part of a default run.
 manage_windows: false
 
 # Which optional role groups to run.
 enable_languages: true
 enable_editor: true
+enable_docker: true
+enable_fonts: true

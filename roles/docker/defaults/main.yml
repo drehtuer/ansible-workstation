@@ -1,0 +1,21 @@
+---
+# All three come from the Ubuntu archive: docker.io is the engine, the other
+# two are the buildx and compose CLI plugins.  Docker is here because the
+# user drives it interactively -- it serves nothing to the network.
+docker_packages:
+  - docker-buildx
+  - docker-compose-v2
+  - docker.io
+
+# Membership in this group makes /var/run/docker.sock usable without sudo.
+# It is equivalent to root on this machine, which is the accepted trade on a
+# single-user workstation; set docker_manage_group to false to opt out.
+#
+# The account comes from the vault by way of `workstation_user`, not from
+# ansible_user_id: the name differs between machines, and it is
+# user-identifying data that does not belong in a public repository.  Each
+# machine carries its own under inventory/host_vars/<hostname>/vault.yml.
+docker_manage_group: true
+docker_group: docker
+docker_users:
+  - "{{ workstation_user }}"

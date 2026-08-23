@@ -1,0 +1,14 @@
+---
+# Template for inventory/host_vars/<hostname>/vault.yml.
+#
+# One directory per machine, named exactly as `hostname -s` reports it -- the
+# inventory names the host after the machine, so ansible finds it there.
+# Create it with `invoke vault-init --host`, edit it with
+# `invoke vault-edit --host`; both work on the machine you are sitting at.
+#
+# The committed file is ALWAYS encrypted.  This example holds placeholders
+# only and must never contain real values.
+
+# The login account to provision on this machine, for example the account
+# added to the docker group.
+vault_workstation_user: "your-account"

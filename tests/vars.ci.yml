@@ -4,4 +4,5 @@
 git_user_name: "CI Robot"
 git_user_email: "ci@example.invalid"
 git_signing_key: ""
+workstation_user: "ci-robot"
 manage_windows: false

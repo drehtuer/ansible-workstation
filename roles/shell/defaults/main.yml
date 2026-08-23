@@ -3,6 +3,7 @@ shell_packages:
   - bash-completion
   - fzf
   - ripgrep
+  - screen
   - tmux
 # Set to e.g. /usr/bin/zsh to change the login shell; empty leaves it alone.
 shell_default_shell: ""

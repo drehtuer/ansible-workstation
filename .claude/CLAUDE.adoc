@@ -59,7 +59,8 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | Work/private separated by *forking*, not by profiles or branches
 | README, _Work and private separation_
 
-| One vault, one password file at `~/.config/ansible/vault_pass`
+| One vault identity and one password file at
+  `~/.config/ansible/vault_pass`; the shared vault plus one per machine
 | README, _Secrets and Ansible Vault_
 
 | The repository is *public on purpose* — it forces the no-plaintext rule
@@ -88,6 +89,23 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | The site is versioned from git: `main` plus one version per `v*` tag, and
   the start page lands on the newest release
 | README, _Versions, and where the start page lands_
+
+| Packages come from the Ubuntu archive; `ppa:neovim-ppa/unstable` is the
+  only extra apt source
+| README, _What gets installed_
+
+| `vi` and `vim` reach nvim through alternatives, never through symlinks
+| README, _neovim, and the vi/vim alternatives_
+
+| `docker` group membership is accepted on a single-user workstation
+| README, _Docker_
+
+| `docker` and `fonts` are roles of their own, not additions to `base`
+| README, _What gets installed_
+
+| The login account is vault data, in that machine's own `host_vars` vault —
+  never derived from `ansible_user_id`
+| README, _Values that differ per machine_
 |===
 
 == Non-negotiable rules
@@ -123,6 +141,16 @@ private as a way to relax any rule below.
 . When adding a secret, add *both* halves: `vault_<name>` in `vault.yml` and the
   plain reference in `inventory/group_vars/all/vars.yml`. Add the placeholder to
   `vault.yml.example` too, or the next `vault-init` will be incomplete.
+. The login account name is one of those secrets. It lives in
+  `inventory/host_vars/<hostname>/vault.yml` as `vault_workstation_user` and
+  is read through `workstation_user`; never fall back to `ansible_user_id`. A
+  machine without one must fail with a message, not be guessed at — and a task
+  that acts on an account verifies it exists first, because
+  `ansible.builtin.user` happily creates one.
+. A per-host vault is a vault: encrypted with the same password, committed
+  encrypted, and covered by `scripts/check_vault_encrypted.py`. Machine names
+  reach this repository only as those directory names — do not write them
+  anywhere else.
 
 === Work / private separation
 
@@ -207,7 +235,10 @@ _Documentation_.
 === Scope
 
 * Prefer changing an existing role over adding a new one. A new role needs a
-  distinct concern, not just a distinct package.
+  distinct concern, not just a distinct package. `docker` (a runtime plus
+  group membership) and `fonts` (downloaded assets and a fontconfig rule) are
+  the settled examples of concerns that earn their own role; a package that
+  only needs installing belongs in the role that owns its purpose.
 * Do not introduce a new package manager, dotfile manager, or abstraction layer
   without asking first.
 * Do not add a CI-only command. If CI runs it, it is an `invoke` task in
@@ -217,6 +248,11 @@ _Documentation_.
 
 * `tasks.py` (Invoke) is the only entry point for checks. Adding a check means
   adding a task, not a shell snippet in CI or in the README.
+* `invoke converge` mounts the repository *read-only*, copies it aside in the
+  container and deletes every `vault.yml` from the copy. CI holds no vault
+  password, and an encrypted file under `group_vars/` or `host_vars/` fails
+  the run while variables load — before `--skip-tags secrets` could matter.
+  Keep that strip step, or the first machine to commit a vault breaks CI.
 * The task runner never reads the vault password — it passes the *path* via
   `--vault-password-file`, and only when that file exists. Preserve that
   property.
@@ -257,8 +293,12 @@ _Documentation_.
 == Ansible conventions
 
 Targets::
-Always `localhost` with `connection: local`. There is no SSH inventory, and
-Windows is reached through interop, not WinRM.
+One host — the machine itself, reported by `inventory/hosts.py` under its own
+name, with `connection: local`. Plays target `all`, because the inventory
+contains nothing else. Do not rename that host back to `localhost`: machines
+have names, and `host_vars/` resolves by the inventory name, so a fixed one
+would give every workstation the same per-machine file. There is no SSH
+inventory, and Windows is reached through interop, not WinRM.
 
 Idempotency::
 Every task must be safe to run repeatedly. A second run reports `changed=0`.
@@ -279,6 +319,35 @@ Structure::
 
 Privilege::
 `become: true` only on the tasks that need it, never blanket at play level.
+
+Package placement::
+A package belongs to the role that owns its concern, not to `base` because it
+is convenient — multiplexers in `shell`, forge CLIs in `git`, the container
+tooling in `docker`. `base` is for what every workstation needs regardless of
+what is installed on top. Prefer the Ubuntu archive; `gh` and `glab` are in
+it, and so is nearly everything else.
+
+Third-party apt sources::
+Adding one means three things: the signing key committed to the role's
+`files/`, an `ansible.builtin.copy` of it into `/etc/apt/keyrings/`, and an
+`ansible.builtin.deb822_repository` entry whose `signed_by` points at that
+path. Record the fingerprint and the refresh command in `defaults/main.yml`.
++
+Two things not to do. `apt_repository` with a `ppa:` shorthand resolves the
+key through a keyserver over hkp, which needs `dirmngr`, and it fails on
+26.04. `get_url` against a keyserver looks tidier than committing the key,
+but keyservers do not answer byte-for-byte the same twice: without a checksum
+the task reports *changed* on every run, and with one it fails the moment the
+armor differs. Never `apt-key`.
++
+`deb822_repository` needs `python3-debian`, which Ubuntu does not install by
+default. The role that adds a source installs it, so `--tags <role>` works on
+its own.
+
+Alternatives::
+When a package should take over a well-known command name, register an
+alternative rather than writing a symlink: the package manager stops fighting
+over the file and `update-alternatives --config` reverses it.
 
 Distribution support::
 Both Ubuntu 24.04 and 26.04 must work. When they differ, branch on

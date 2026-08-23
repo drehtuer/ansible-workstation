@@ -1,0 +1,34 @@
+---
+fonts_packages:
+  - fontconfig
+  - unzip
+
+# Nerd Fonts releases one archive per family.  Pinned, with the checksum of
+# the archive, so a rebuilt release cannot change what lands on the machine.
+fonts_nerd_fonts_version: v3.5.1
+fonts_nerd_fonts_url: >-
+  https://github.com/ryanoasis/nerd-fonts/releases/download
+fonts_nerd_fonts:
+  # Fira Code is the ligature variant; FiraMono is the same family with the
+  # ligatures removed, so this is the one to install.
+  - name: FiraCode
+    sha256: >-
+      239395baf60c89b2eaf4862b6b09db0ef95605cd3e8eef51c00345822a81a665
+    # A file the archive is known to contain; its presence is what tells a
+    # second run that the archive is already unpacked.
+    sentinel: FiraCodeNerdFont-Regular.ttf
+
+# Per-user locations: installing fonts needs no root.
+fonts_dir: "{{ ansible_env.HOME }}/.local/share/fonts"
+fonts_cache_dir: "{{ ansible_env.HOME }}/.cache/nerd-fonts"
+fonts_fontconfig_dir: "{{ ansible_env.HOME }}/.config/fontconfig/conf.d"
+
+# Fira Code's ligatures are drawn by the OpenType `calt` feature.  Terminals
+# decide for themselves, but everything that renders through fontconfig
+# follows this.
+fonts_enable_ligatures: true
+# Matched as a substring, because fontconfig exposes every weight and variant
+# as a family of its own: this one entry also covers "FiraCode Nerd Font
+# Mono", "FiraCode Nerd Font Propo Light", and the rest.
+fonts_ligature_families:
+  - FiraCode Nerd Font

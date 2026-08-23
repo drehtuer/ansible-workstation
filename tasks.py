@@ -7,6 +7,7 @@ run byte-identical commands.  Invoke with ``uv run invoke <task>``.
 from __future__ import annotations
 
 import shutil
+import socket
 import sys
 from pathlib import Path
 
@@ -18,6 +19,12 @@ UBUNTU_TARGETS = ["24.04", "26.04"]
 
 VAULT_PASSWORD_FILE = Path.home() / ".config" / "ansible" / "vault_pass"
 VAULT_FILE = ROOT / "inventory" / "group_vars" / "all" / "vault.yml"
+HOST_VARS = ROOT / "inventory" / "host_vars"
+
+HOST_HELP = (
+    "Work on this machine's own vault under inventory/host_vars/, "
+    "instead of the one shared by every machine."
+)
 
 ANTORA_PLAYBOOK = "antora-playbook.yml"
 NODE_MODULES = ROOT / "node_modules"
@@ -130,8 +137,10 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     # The script lives in a file rather than inline: passing a multi-line
     # script through `bash -c` invites quoting bugs, and a real file can be
     # syntax-checked and read on its own.
+    # Mounted read-only: the script copies the repository aside and works
+    # there, so a converge can never write back into the checkout.
     c.run(
-        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} "
+        f"docker run --rm -v {ROOT}:/repo:ro -w /repo ubuntu:{ubuntu} "
         "bash /repo/tests/converge.sh",
         pty=True,
     )
@@ -160,6 +169,19 @@ def site(c: Context, fetch: bool = False) -> None:
     print(f"site written to {SITE_DIR}", file=sys.stderr)
 
 
+def vault_file(host: bool) -> tuple[Path, Path]:
+    """Return the vault to work on and the example it is created from.
+
+    With ``host``, that is this machine's own vault under
+    ``inventory/host_vars/<hostname>/`` -- the same name the inventory
+    reports.  Without it, the vault shared by every machine.
+    """
+    if not host:
+        return VAULT_FILE, VAULT_FILE.with_suffix(".yml.example")
+    name = socket.gethostname().split(".", 1)[0]
+    return HOST_VARS / name / "vault.yml", HOST_VARS / "vault.yml.example"
+
+
 def require_password_file() -> Path:
     """Return the vault password file, explaining how to create it if absent."""
     if VAULT_PASSWORD_FILE.is_file():
@@ -174,35 +196,38 @@ def require_password_file() -> Path:
     )
 
 
-@task
-def vault_edit(c: Context) -> None:
-    """Edit the vault in place; it is never decrypted to disk."""
+@task(help={"host": HOST_HELP})
+def vault_edit(c: Context, host: bool = False) -> None:
+    """Edit a vault in place; it is never decrypted to disk."""
     password_file = require_password_file()
-    if not VAULT_FILE.exists():
+    target, _ = vault_file(host)
+    if not target.exists():
         raise Exit(
-            f"{VAULT_FILE} does not exist -- run `invoke vault-init` first",
+            f"{target} does not exist -- run `invoke vault-init"
+            f"{' --host' if host else ''}` first",
             code=2,
         )
     c.run(
-        f"ansible-vault edit --vault-password-file {password_file} "
-        f"{VAULT_FILE}",
+        f"ansible-vault edit --vault-password-file {password_file} {target}",
         pty=True,
     )
 
 
-@task
-def vault_init(c: Context) -> None:
-    """Create the encrypted vault from its example template.
+@task(help={"host": HOST_HELP})
+def vault_init(c: Context, host: bool = False) -> None:
+    """Create an encrypted vault from its example template.
 
-    The password file must already exist and must live outside this repository.
+    The password file must already exist and must live outside this
+    repository.  One password covers every vault here, shared or per-host.
     """
     password_file = require_password_file()
-    if VAULT_FILE.exists():
-        raise Exit(f"{VAULT_FILE} already exists", code=2)
-    VAULT_FILE.write_text(VAULT_FILE.with_suffix(".yml.example").read_text())
+    target, example = vault_file(host)
+    if target.exists():
+        raise Exit(f"{target} already exists", code=2)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(example.read_text())
     c.run(
-        f"ansible-vault encrypt --vault-password-file {password_file} "
-        f"{VAULT_FILE}",
+        f"ansible-vault encrypt --vault-password-file {password_file} {target}",
         pty=True,
     )
 

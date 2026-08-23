@@ -1,8 +1,22 @@
 ---
+- name: Update the apt cache
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ base_apt_cache_valid_time }}"
+
+# Reports "changed" whenever it actually upgrades something, which is honest
+# rather than idempotent: a machine that has been running for a week has
+# updates waiting.  A second run right after the first one is a no-op.
+- name: Upgrade the installed packages
+  become: true
+  ansible.builtin.apt:
+    upgrade: "{{ base_upgrade_type }}"
+  when: base_upgrade | bool
+  tags: [upgrade]
+
 - name: Install base packages
   become: true
   ansible.builtin.apt:
     name: "{{ base_packages }}"
     state: present
-    update_cache: true
-    cache_valid_time: "{{ base_apt_cache_valid_time }}"
