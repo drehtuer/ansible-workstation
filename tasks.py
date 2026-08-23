@@ -109,7 +109,7 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
         "/venv/bin/pip install --quiet -r requirements.txt\n"
         "/venv/bin/ansible-galaxy install -r requirements.yml\n"
         "run() { /venv/bin/ansible-playbook playbooks/site.yml"
-        " --skip-tags secrets -e @tests/vars.ci.yml \"$@\"; }\n"
+        ' --skip-tags secrets -e @tests/vars.ci.yml "$@"; }\n'
         'echo "=== converge 1 ==="\n'
         "run\n"
         'echo "=== converge 2 (must report changed=0) ==="\n'

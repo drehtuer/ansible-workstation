@@ -27,9 +27,11 @@ Before changing anything, read `README.adoc` sections *Current state* and
 was deliberately decided against. Keep both current: they are the handover
 document when this repository is reopened after a break.
 
-The single most important open item: *`uv.lock` and `requirements.txt` are not
-committed yet.* Nothing has been linted or converged. Do not describe the roles
-as working until `invoke lint` and `invoke converge` have actually run.
+The single most important open item: *no converge has ever run.* Lint is green
+— `ansible-lint`'s production profile, `yamllint` and `ruff` all pass — but the
+roles have never been applied to a machine. Idempotency is asserted by
+construction, not observed. Do not describe the roles as working until
+`invoke converge` has actually passed on both Ubuntu targets.
 
 == Decisions already made
 
