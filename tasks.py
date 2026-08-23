@@ -99,25 +99,12 @@ def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     if shutil.which("docker") is None:
         raise Exit("docker is required for converge tests", code=2)
 
-    script = (
-        "set -eu\n"
-        "export DEBIAN_FRONTEND=noninteractive\n"
-        "apt-get update -qq\n"
-        "apt-get install -y -qq python3 python3-venv sudo git >/dev/null\n"
-        "python3 -m venv /venv\n"
-        "/venv/bin/pip install --quiet --upgrade pip\n"
-        "/venv/bin/pip install --quiet -r requirements.txt\n"
-        "/venv/bin/ansible-galaxy install -r requirements.yml\n"
-        "run() { /venv/bin/ansible-playbook playbooks/site.yml"
-        ' --skip-tags secrets -e @tests/vars.ci.yml "$@"; }\n'
-        'echo "=== converge 1 ==="\n'
-        "run\n"
-        'echo "=== converge 2 (must report changed=0) ==="\n'
-        "run | tee /tmp/second.log\n"
-        'grep -q "changed=0" /tmp/second.log || { echo "NOT IDEMPOTENT"; exit 1; }\n'
-    )
+    # The script lives in a file rather than inline: passing a multi-line
+    # script through `bash -c` invites quoting bugs, and a real file can be
+    # syntax-checked and read on its own.
     c.run(
-        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} bash -c {script!r}",
+        f"docker run --rm -v {ROOT}:/repo -w /repo ubuntu:{ubuntu} "
+        "bash /repo/tests/converge.sh",
         pty=True,
     )
 

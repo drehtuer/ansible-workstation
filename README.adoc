@@ -61,6 +61,7 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 
 | CI
 | GitHub Actions: lint job, then a converge matrix over both Ubuntu releases.
+  Green.
 
 | Devcontainer
 | `asciidoctor`, `gh`, `uv`, docker-outside-of-docker; `~/.claude` and `~/.ssh`
@@ -80,22 +81,22 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 * `yamllint` passes.
 * `ruff check` and `ruff format --check` pass.
 * `scripts/install-uv.sh` provisions a clean Ubuntu 24.04 container end to end.
+* `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
+  reports `changed=0`, so the roles are observably idempotent.
 * Python syntax, shell syntax, YAML/JSON parsing, and the vault guard's own
   behaviour.
 
 .What is not verified
-*No converge has ever run.* The roles have never actually been applied to a
-machine, so idempotency is asserted by construction, not by observation. The
-first `invoke converge` is the real test.
+The playbook has never run on a *real* WSL machine — only in containers, as
+root, with the `secrets` tag skipped. Three things are therefore still untested:
+`become` against a real sudo prompt, the vault path end to end, and everything
+in `roles/windows`, which needs a Windows host and cannot run in CI at all.
 
 [#roadmap]
 == Roadmap
 
 Ordered roughly by dependency.
 
-. *First converge.* `uv run invoke converge` for 24.04, then 26.04. Nothing has
-  ever been applied to a real machine; this is the first genuine test of the
-  roles.
 . *Fill in the roles.* Every `roles/*/defaults/main.yml` currently holds a
   placeholder package list. Replace with the real toolset.
 . *Create the vault.* `invoke vault-init`, then move the git identity into it.

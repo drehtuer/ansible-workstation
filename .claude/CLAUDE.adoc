@@ -27,11 +27,14 @@ Before changing anything, read `README.adoc` sections *Current state* and
 was deliberately decided against. Keep both current: they are the handover
 document when this repository is reopened after a break.
 
-The single most important open item: *no converge has ever run.* Lint is green
-— `ansible-lint`'s production profile, `yamllint` and `ruff` all pass — but the
-roles have never been applied to a machine. Idempotency is asserted by
-construction, not observed. Do not describe the roles as working until
-`invoke converge` has actually passed on both Ubuntu targets.
+Lint and converge are both green: `ansible-lint` (production profile),
+`yamllint`, `ruff`, and a two-pass converge on Ubuntu 24.04 and 26.04 reporting
+`changed=0`.
+
+What that does *not* cover, and what you must not claim works: the playbook has
+never run on a real WSL machine. Containers run as root with the `secrets` tag
+skipped, so `become` against a real sudo prompt, the vault path end to end, and
+all of `roles/windows` remain untested.
 
 == Decisions already made
 
