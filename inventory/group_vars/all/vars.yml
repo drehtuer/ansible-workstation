@@ -21,3 +21,4 @@ enable_languages: true
 enable_editor: true
 enable_docker: true
 enable_fonts: true
+enable_nodejs: true

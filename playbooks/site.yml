@@ -41,5 +41,8 @@
     - role: languages
       tags: [languages]
       when: enable_languages | bool
+    - role: nodejs
+      tags: [nodejs]
+      when: enable_nodejs | bool
     - role: dotfiles
       tags: [dotfiles]

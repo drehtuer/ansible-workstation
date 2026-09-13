@@ -1,0 +1,38 @@
+---
+# Ubuntu freezes node at whatever was current when the release was cut and
+# never moves it, so the archive is a release or three behind.  Node comes
+# from NodeSource instead, which publishes one repository per major line and
+# keeps that line current.
+#
+# 24 is the active LTS (Krypton).  Point nodejs_major at another line to
+# follow it: 26 becomes LTS in October 2026, 22 (Jod) is in maintenance until
+# April 2027.  Changing it replaces the installed runtime, see tasks/main.yml.
+nodejs_major: 24
+nodejs_repo_uri: "https://deb.nodesource.com/node_{{ nodejs_major }}.x"
+# NodeSource publishes one distribution-agnostic suite, so the same source
+# line serves every Ubuntu release -- there is no codename to substitute.
+nodejs_repo_suite: nodistro
+nodejs_keyring: /etc/apt/keyrings/nodesource.asc
+
+# The signing key ships with the role, in files/.  It is public data -- a
+# keyring, not a secret -- and having it here means provisioning does not
+# depend on deb.nodesource.com answering before apt needs it.  Refresh with:
+#
+#   curl -sS https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+#     -o roles/nodejs/files/nodesource.asc
+#
+# and check the fingerprint before committing:
+#
+#   gpg --show-keys roles/nodejs/files/nodesource.asc
+#   # 6F71 F525 2828 41EE DAF8  51B4 2F59 B5F9 9B1B E0B4
+nodejs_key_file: nodesource.asc
+
+# Without this, apt compares version numbers across sources and the archive
+# could win -- which is the whole problem this role exists to solve.  600
+# beats the archive's default 500 whatever the numbers say.
+nodejs_pin_priority: 600
+
+# npm ships inside NodeSource's nodejs package; do not add Ubuntu's separate
+# npm package here, it depends on the archive's node.
+nodejs_packages:
+  - nodejs
