@@ -5,6 +5,33 @@
     name: "{{ docker_packages }}"
     state: present
 
+# The file belongs to the administrator, not to this role: it is read,
+# amended and written back, so a setting put there by hand survives.  It has
+# to be valid JSON, which docker requires of it anyway.
+- name: Configure the docker daemon MTU
+  when: docker_daemon_mtu | int > 0
+  become: true
+  block:
+    - name: Read the current daemon configuration
+      ansible.builtin.slurp:
+        src: "{{ docker_daemon_config }}"
+      register: docker_daemon_current
+      failed_when: false
+
+    - name: Set the MTU, leaving the rest of the file as it was
+      vars:
+        current: >-
+          {{ docker_daemon_current.content | b64decode | from_json
+             if docker_daemon_current.content is defined else {} }}
+      ansible.builtin.copy:
+        # `>` rather than `>-`: the file ends with a newline like any other.
+        content: >
+          {{ current | combine({"mtu": docker_daemon_mtu | int})
+             | to_nice_json }}
+        dest: "{{ docker_daemon_config }}"
+        mode: "0644"
+      notify: Restart docker
+
 - name: Read the local accounts
   ansible.builtin.getent:
     database: passwd

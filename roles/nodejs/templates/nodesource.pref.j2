@@ -1,0 +1,7 @@
+# Managed by ansible-workstation, roles/nodejs.
+#
+# The archive also ships a nodejs, and apt would otherwise pick whichever
+# version number is higher.  Pinning by origin settles it by source instead.
+Package: nodejs
+Pin: origin deb.nodesource.com
+Pin-Priority: {{ nodejs_pin_priority }}

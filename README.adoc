@@ -55,8 +55,8 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 
 | Roles
 | `wsl`, `base`, `shell`, `git`, `editor`, `docker`, `fonts`, `languages`,
-  `dotfiles`, `windows`. All but `languages` and `dotfiles` install the real
-  toolset — see <<toolset>>.
+  `nodejs`, `dotfiles`, `windows`. All but `languages` and `dotfiles` install
+  the real toolset — see <<toolset>>.
 
 | Secret handling
 | Vault indirection, `secrets` tag, `no_log`, pre-commit guard, `.gitattributes`
@@ -91,6 +91,18 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 * `scripts/install-uv.sh` provisions a clean Ubuntu 24.04 container end to end.
 * `invoke site` builds the documentation site without a warning, from a normal
   checkout and from the detached, shallow checkout CI produces.
+* `docker_daemon_mtu`, in a container: the default `0` leaves
+  `/etc/docker/daemon.json` untouched; setting it adds `mtu` to a file that
+  already held a `log-driver` and leaves that setting alone; a second run
+  reports `changed=0`; changing the number rewrites only that key; and with
+  no file at all it writes valid JSON. The daemon restart it notifies cannot
+  be exercised where systemd is not running.
+* Node comes from NodeSource and stays there: on 24.04, whose archive still
+  offers 18.19.1, and on 26.04, which offers 22.22.1, the role installs
+  24.21.0 with npm 11.19.0 and `apt-cache policy` shows it held at pin
+  priority 600. A second pass reports `changed=0`. Repointing `nodejs_major`
+  at 22 replaces the runtime with 22.23.2, and moving it back restores
+  24.21.0 — then goes quiet again.
 * The vault path, end to end in a container: `invoke vault-init --host`
   writes an encrypted vault for the machine the inventory named,
   `invoke vault-edit --host` edits it in place, and a run with the password
@@ -547,12 +559,49 @@ visible from where it sits.
 
 | `fonts`
 | Fira Code Nerd Font, with ligatures enabled through fontconfig
+
+| `nodejs`
+| The node runtime and npm, from NodeSource, pinned to a major line
 |===
 
-Everything except neovim and the font comes from the Ubuntu archive — `gh`
-and `glab` included, which is why this repository adds exactly one apt source
-and not four. The archive trails upstream by a release or two; that is the
-price of not maintaining four keyrings.
+Node is the clearest case for that second source: 24.04's archive still
+offers 18.x, a line that went end-of-life in April 2025.
+
+The Ubuntu archive is the *default* source, not a vow. It trails upstream by
+a release or two, which is unremarkable for `jq` and fatal for a runtime that
+has gone end-of-life — so when the archive's version cannot do the job, this
+repository takes the upstream source instead. Today that means the neovim PPA
+and NodeSource; the list is expected to grow, not to stay at two.
+
+What it is not is free. Each source is a keyring to keep current, a party
+trusted to run code on this machine, and one more thing that can go missing
+on a release upgrade. So prefer the archive — `gh` and `glab` are in it, and
+so is most of what a workstation needs — and when you do add a source, add it
+the same way every time: see <<apt-sources>>.
+
+[#apt-sources]
+=== Adding an apt source
+
+Every source is added the same way, so every one of them can be audited the
+same way:
+
+. The signing key is *committed to the role* under `files/` and copied into
+  `/etc/apt/keyrings/`. It is public data, and having it here keeps
+  provisioning independent of a keyserver — which also does not answer
+  byte-for-byte the same twice — while putting the key that will be trusted
+  in front of a reviewer.
+. The source is an `ansible.builtin.deb822_repository` entry whose
+  `Signed-By` names that keyring. Never a line appended to `sources.list`,
+  never `apt-key`.
+. `defaults/main.yml` records the fingerprint, the command that refreshes the
+  key, and what the archive offered that was not good enough.
+. Where the archive ships a package of the same name, an apt preference pins
+  the origin, so which source wins is a decision rather than an accident of
+  version numbers — see <<nodejs>>.
+
+`deb822_repository` is built on `python3-debian`, which Ubuntu does not
+install by default. The role that adds a source installs it, so
+`--tags <role>` works on its own.
 
 === Updating the base system
 
@@ -591,6 +640,45 @@ Alternatives rather than symlinks: installing `vim` later stays possible, the
 package manager never fights over the file, and the change is reversible with
 one command. `git_editor` defaults to `nvim` for the same reason.
 
+[#nodejs]
+=== Node.js
+
+Ubuntu freezes node at whatever was current when the release was cut and then
+never moves it: 24.04 still ships 18.x, an end-of-life line. So node comes
+from link:https://github.com/nodesource/distributions[NodeSource], which
+publishes one apt repository per major line and keeps that line current.
+
+[source,yaml]
+----
+nodejs_major: 24        # <1>
+----
+<1> The active LTS, *Krypton*. Point it at another line to follow that one:
+    26 becomes LTS in October 2026, 22 (*Jod*) is in maintenance until April
+    2027.
+
+Three details make that variable mean what it says.
+
+*The repository is per major line.* `node_24.x` only ever contains 24.x, so
+the `safe` upgrade in `base` keeps node current within the line and can never
+jump a major on its own. Its suite is `nodistro` rather than an Ubuntu
+codename, so one source line serves both supported releases.
+
+*A changed line replaces the runtime.* `state: present` is satisfied by any
+installed node, so repointing `nodejs_major` would otherwise change the
+repository and leave the old runtime in place. The role reads the installed
+version, and when its major differs it removes node before installing from
+the new line. That fires only on an actual change, never on a re-run.
+
+*An apt pin settles which source wins.* Both the archive and NodeSource offer
+a package called `nodejs`, and apt would otherwise simply compare version
+numbers — the failure this role exists to prevent.
+`/etc/apt/preferences.d/nodesource.pref` pins by origin at priority 600, so
+NodeSource wins whatever the numbers say.
+
+NOTE: npm comes inside NodeSource's `nodejs` package. Do not add Ubuntu's
+separate `npm` package anywhere: it depends on the archive's node and drags
+it back in.
+
 === Docker
 
 `docker.io` is the engine as Ubuntu ships it, with `docker-buildx` and
@@ -613,6 +701,39 @@ The daemon is enabled only where systemd is the init system, which in WSL
 means `systemd=true` in `/etc/wsl.conf` — the `wsl` role sets that. Docker
 listens on a unix socket, not on a port, so it stays within
 <<state,what this repository provisions>>.
+
+[#docker-mtu]
+==== The container MTU
+
+Docker gives containers an MTU of 1500 whatever the uplink can carry, and a
+WSL uplink is frequently smaller — 1492 is common. A container's full-size
+packets are then dropped somewhere upstream with nothing to show for it:
+small downloads succeed, large ones stall until they time out, and the whole
+thing looks like a broken package repository rather than a network problem.
+
+[source,bash]
+----
+ip -o link show eth0 | grep -o 'mtu [0-9]*'      # what the uplink carries
+ip -o link show docker0 | grep -o 'mtu [0-9]*'   # what containers are given
+----
+
+If those disagree, set the daemon to the smaller number:
+
+[source,yaml]
+----
+docker_daemon_mtu: 1492
+docker_daemon_mtu: "{{ ansible_default_ipv4.mtu }}"   # or follow the uplink
+----
+
+The role reads `/etc/docker/daemon.json`, adds the `mtu` key, and writes it
+back, so anything already in that file survives. `0`, the default, leaves the
+file alone entirely. Applying a change restarts the daemon, which stops
+running containers — and takes effect at the next start where systemd is not
+running the show.
+
+NOTE: This sets the daemon's default, which the default bridge uses. A
+network created earlier keeps the MTU it was created with; `docker network
+rm` and let it be recreated, or pass the MTU when creating it.
 
 === The Fira Code Nerd Font
 
@@ -846,6 +967,25 @@ CI runs *those same tasks*. There is no CI-only command.
 | `invoke all`
 | `lint`, `syntax`, `site`, then converge on every supported Ubuntu release
 |===
+
+[CAUTION]
+====
+`invoke converge` downloads from the internet *inside a container*: the Nerd
+Font from GitHub and node from `deb.nodesource.com`. If those hang while the
+Ubuntu archive works fine, check the MTU rather than the roles:
+
+[source,bash]
+----
+ip -o link show eth0 | grep -o 'mtu [0-9]*'      # the WSL uplink
+ip -o link show docker0 | grep -o 'mtu [0-9]*'   # what containers get
+----
+
+A WSL uplink is often 1492 while docker hands containers 1500, so a container
+emits frames the uplink cannot carry. Small transfers fit and large ones
+stall, which looks exactly like a broken repository. `docker_daemon_mtu`
+fixes it for good, see <<docker-mtu>>. CI is unaffected: runners are 1500 end
+to end.
+====
 
 Invoke was chosen over `make` because these tasks are Python: they inspect
 whether the vault password file exists, validate arguments, and assemble command

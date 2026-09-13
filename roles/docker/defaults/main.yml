@@ -19,3 +19,19 @@ docker_manage_group: true
 docker_group: docker
 docker_users:
   - "{{ workstation_user }}"
+
+# Docker gives containers an MTU of 1500 whatever the uplink can actually
+# carry.  A WSL uplink is often smaller -- 1492 is common -- and then a
+# container's full-size packets are dropped somewhere upstream with nothing
+# to show for it: small downloads succeed, large ones stall until they time
+# out, and it looks like a broken package repository.
+#
+# Set this to the uplink's MTU to fix it:
+#
+#   docker_daemon_mtu: 1492
+#   docker_daemon_mtu: "{{ ansible_default_ipv4.mtu }}"   # follow the uplink
+#
+# 0 leaves /etc/docker/daemon.json alone entirely.  Applying a change
+# restarts the daemon, which stops running containers.
+docker_daemon_mtu: 0
+docker_daemon_config: /etc/docker/daemon.json

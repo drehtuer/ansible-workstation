@@ -1,0 +1,66 @@
+---
+- name: Install the deb822 apt source support
+  become: true
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Ensure the apt keyring directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ nodejs_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Install the NodeSource signing key
+  become: true
+  ansible.builtin.copy:
+    src: "{{ nodejs_key_file }}"
+    dest: "{{ nodejs_keyring }}"
+    mode: "0644"
+
+- name: Add the NodeSource repository
+  become: true
+  ansible.builtin.deb822_repository:
+    name: nodesource
+    types: [deb]
+    uris: "{{ nodejs_repo_uri }}"
+    suites: "{{ nodejs_repo_suite }}"
+    components: [main]
+    signed_by: "{{ nodejs_keyring }}"
+    state: present
+
+- name: Prefer NodeSource over the archive for node
+  become: true
+  ansible.builtin.template:
+    src: nodesource.pref.j2
+    dest: /etc/apt/preferences.d/nodesource.pref
+    mode: "0644"
+
+- name: Read the installed packages
+  ansible.builtin.package_facts:
+    manager: apt
+
+# A major line lives in its own repository, so `state: present` would leave
+# an already-installed node alone and quietly ignore a changed nodejs_major.
+# Removing it first is what makes the variable mean something; it only fires
+# on an actual change of line, never on a re-run.
+- name: Remove node when it is from another major line
+  become: true
+  ansible.builtin.apt:
+    name: nodejs
+    state: absent
+  when:
+    - "'nodejs' in ansible_facts.packages"
+    - ansible_facts.packages["nodejs"][0].version.split(".")[0]
+      != nodejs_major | string
+
+# update_cache carries no cache_valid_time on purpose: the source above may
+# have just been added or repointed, and a merely recent cache would not know
+# about it.  The apt module reports a cache refresh separately from `changed`.
+- name: Install node
+  become: true
+  ansible.builtin.apt:
+    name: "{{ nodejs_packages }}"
+    state: present
+    update_cache: true

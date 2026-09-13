@@ -90,9 +90,14 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
   the start page lands on the newest release
 | README, _Versions, and where the start page lands_
 
-| Packages come from the Ubuntu archive; `ppa:neovim-ppa/unstable` is the
-  only extra apt source
+| The Ubuntu archive is the default source, not a vow: take an upstream apt
+  source when the archive's version cannot do the job, and add every one of
+  them the same way
 | README, _What gets installed_
+
+| Node comes from NodeSource, pinned to a major line by `nodejs_major` and to
+  that origin by an apt preference
+| README, _Node.js_
 
 | `vi` and `vim` reach nvim through alternatives, never through symlinks
 | README, _neovim, and the vi/vim alternatives_
@@ -227,8 +232,13 @@ _Documentation_.
   are the one exemption from that cap, declared in `.editorconfig`: they are
   upstream's lines, and rewrapping them would destroy the diff that makes an
   override reviewable.
-* Node.js is a *documentation* dependency. Nothing the playbooks install may
-  depend on it, and no role may require `npm`.
+* The site's Node.js is a *documentation* dependency: it belongs to the
+  devcontainer and to CI, and it is not the runtime the `nodejs` role
+  provisions. Keep the two apart. No role may shell out to `npm` to do its
+  work, nothing the playbooks install may depend on the site toolchain, and
+  `invoke site` must never depend on a provisioned workstation — the two are
+  installed by different mechanisms, on different machines, at different
+  versions.
 * After changing `package.json`, commit the regenerated `package-lock.json`
   with it — same rule as `uv.lock`.
 
@@ -237,8 +247,10 @@ _Documentation_.
 * Prefer changing an existing role over adding a new one. A new role needs a
   distinct concern, not just a distinct package. `docker` (a runtime plus
   group membership) and `fonts` (downloaded assets and a fontconfig rule) are
-  the settled examples of concerns that earn their own role; a package that
-  only needs installing belongs in the role that owns its purpose.
+  the settled examples of concerns that earn their own role, and `nodejs` is
+  a third: an apt source plus a version policy, which is more than the plain
+  package list `languages` is. A package that only needs installing belongs
+  in the role that owns its purpose.
 * Do not introduce a new package manager, dotfile manager, or abstraction layer
   without asking first.
 * Do not add a CI-only command. If CI runs it, it is an `invoke` task in
@@ -324,10 +336,19 @@ Package placement::
 A package belongs to the role that owns its concern, not to `base` because it
 is convenient — multiplexers in `shell`, forge CLIs in `git`, the container
 tooling in `docker`. `base` is for what every workstation needs regardless of
-what is installed on top. Prefer the Ubuntu archive; `gh` and `glab` are in
-it, and so is nearly everything else.
+what is installed on top.
++
+Prefer the Ubuntu archive — `gh` and `glab` are in it, and so is most of what
+a workstation needs. Do not contort around it, though: when the archive's
+version cannot do the job, add the upstream source, see
+_Third-party apt sources_.
 
 Third-party apt sources::
+Adding one is allowed, not exceptional — two are in use already. It does need
+a reason written down in the role's `defaults/main.yml`: what the archive
+offers, and why that is not enough. "Newer" is not a reason on its own;
+end-of-life, or missing a capability the tool exists for, is.
++
 Adding one means three things: the signing key committed to the role's
 `files/`, an `ansible.builtin.copy` of it into `/etc/apt/keyrings/`, and an
 `ansible.builtin.deb822_repository` entry whose `signed_by` points at that
