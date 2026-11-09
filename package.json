@@ -4,7 +4,7 @@
   "private": true,
   "description": "Antora documentation site for ansible-workstation",
   "devDependencies": {
-    "@antora/cli": "3.1.15",
-    "@antora/site-generator": "3.1.15"
+    "@antora/cli": "3.2.2",
+    "@antora/site-generator": "3.2.2"
   }
 }
