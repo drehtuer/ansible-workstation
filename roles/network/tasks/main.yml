@@ -1,0 +1,6 @@
+---
+- name: Install the network tools
+  become: true
+  ansible.builtin.apt:
+    name: "{{ network_packages }}"
+    state: present

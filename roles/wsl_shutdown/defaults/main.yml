@@ -1,0 +1,8 @@
+---
+# `wsl --shutdown` stops the VM, and with it this distro and the Ansible run
+# that asked for it.  So the command is handed to a Windows process that
+# waits this many seconds -- long enough for the play to finish and print
+# its recap -- and only then shuts WSL down.
+wsl_shutdown_delay: 5
+wsl_shutdown_powershell: >-
+  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe

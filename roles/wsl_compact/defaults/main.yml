@@ -1,0 +1,26 @@
+---
+# Gives disk space back to Windows.  The distro lives in an ext4.vhdx that
+# grows as files are written and never shrinks on its own when they are
+# deleted.  Two steps, in this order:
+#
+#   1. fstrim inside the distro marks every free block as unused.  On a
+#      sparse VHD that alone returns the space.
+#   2. diskpart `compact vdisk` on the Windows side shrinks a VHD that is not
+#      sparse.  It needs the VHD detached, so WSL is shut down first, and it
+#      needs an elevated shell, so Windows raises a UAC prompt.
+#
+# Set wsl_compact_diskpart to false to run step 1 only -- no UAC prompt, no
+# shutdown.
+wsl_compact_diskpart: true
+
+# Seconds the elevated script waits before shutting WSL down, so the play
+# can finish first, and at most how long it then waits for the VHD to be
+# released.
+wsl_compact_delay: 5
+wsl_compact_release_timeout: 60
+
+# Where Windows registers each distro, with its BasePath.
+wsl_compact_lxss_key: HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss
+
+wsl_compact_powershell: >-
+  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe

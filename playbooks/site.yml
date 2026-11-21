@@ -16,8 +16,8 @@
           supported: {{ supported_ubuntu_releases | join(', ') }}
       vars:
         supported_ubuntu_releases:
-          - "24.04"
           - "26.04"
+          - "24.04"
       tags: [always]
 
   roles:
@@ -38,11 +38,24 @@
     - role: fonts
       tags: [fonts]
       when: enable_fonts | bool
-    - role: languages
-      tags: [languages]
-      when: enable_languages | bool
+    - role: network
+      tags: [network]
+      when: enable_network | bool
+    - role: python
+      tags: [python]
+      when: enable_python | bool
+    - role: android
+      tags: [android]
+      when: enable_android | bool
     - role: nodejs
       tags: [nodejs]
       when: enable_nodejs | bool
-    - role: dotfiles
-      tags: [dotfiles]
+    - role: claude
+      tags: [claude]
+      when: enable_claude | bool
+    - role: browser
+      tags: [browser]
+      when: enable_browser | bool
+    - role: kvm
+      tags: [kvm]
+      when: enable_kvm | bool

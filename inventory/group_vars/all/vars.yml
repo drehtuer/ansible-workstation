@@ -17,8 +17,13 @@ workstation_user: "{{ vault_workstation_user | default('') }}"
 manage_windows: false
 
 # Which optional role groups to run.
-enable_languages: true
+enable_python: true
+enable_network: true
+enable_android: true
+enable_browser: true
+enable_kvm: true
 enable_editor: true
 enable_docker: true
 enable_fonts: true
 enable_nodejs: true
+enable_claude: true

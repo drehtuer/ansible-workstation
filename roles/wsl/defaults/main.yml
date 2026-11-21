@@ -5,3 +5,13 @@ wsl_systemd_enabled: true
 # Interop itself stays on, so powershell.exe remains reachable by full path.
 wsl_append_windows_path: false
 wsl_automount_options: "metadata,umask=22,fmask=11"
+
+# Health checks, run on every provisioning pass (tag: wsl_check) and skipped
+# outside WSL, which is how the converge container gets past them.
+#
+# WSL 1 is refused outright: it has no real kernel, so systemd, docker and
+# KVM cannot work there.  A kernel that differs from the installed WSL's is
+# reported -- WSL was updated, the VM has not restarted yet.  Set
+# wsl_kernel_check_strict to fail on it instead.
+wsl_exe: /mnt/c/Windows/System32/wsl.exe
+wsl_kernel_check_strict: false

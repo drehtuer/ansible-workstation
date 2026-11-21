@@ -1,0 +1,7 @@
+# Managed by ansible-workstation, roles/browser.
+#
+# The archive's firefox is a snap stub with epoch 1, which would win any
+# version comparison.  Pinning by origin settles it by source instead.
+Package: firefox*
+Pin: origin packages.mozilla.org
+Pin-Priority: {{ browser_mozilla_pin_priority }}

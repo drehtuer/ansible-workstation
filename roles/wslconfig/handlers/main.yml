@@ -1,0 +1,6 @@
+---
+- name: Report .wslconfig change
+  ansible.builtin.debug:
+    msg: >-
+      .wslconfig changed.  Close every WSL session and run `wsl --shutdown`
+      from Windows for the new settings to take effect.

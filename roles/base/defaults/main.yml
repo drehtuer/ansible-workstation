@@ -1,28 +1,46 @@
 ---
 # Everything a workstation needs before any specific tooling.  Packages that
 # belong to one concern live with that concern: multiplexers in `shell`, git
-# and the forge CLIs in `git`, neovim in `editor`, the container tooling in
-# `docker`.
+# and the forge CLIs in `git`, neovim and xxd in `editor`, the container
+# tooling in `docker`, ping and the capture tools in `network`.
+#
+# bsdutils, coreutils, diffutils, findutils, grep and gzip are Essential and
+# therefore always present; listing them states that this repository relies
+# on them, and costs nothing on a re-run.
+#
+# manpages and manpages-dev are the Linux and POSIX section 2/3/4/5/7 pages
+# -- system calls and the C library.  A minimized image excludes
+# /usr/share/man from dpkg altogether, so they install empty there; run
+# `unminimize` once on such a system.
 base_packages:
   - aptitude
   - ascii
   - bash
+  - bsdutils
+  - btop
   - build-essential
   - ca-certificates
+  - coreutils
   - curl
+  - diffutils
+  - dos2unix
+  - findutils
+  - grep
+  - gzip
   - htop
-  - iputils-ping
   - jq
   - less
   - man-db
-  - net-tools
+  - manpages
+  - manpages-dev
   - rsync
   - software-properties-common
   - sudo
   - tree
   - unzip
+  - usbutils
   - wget
-  - xxd
+  - zstd
 base_apt_cache_valid_time: 3600
 
 # Bring already-installed packages up to date on every run.  "safe" never

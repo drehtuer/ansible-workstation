@@ -21,8 +21,16 @@ editor_neovim_keyring: /etc/apt/keyrings/neovim-ppa.asc
 #   # 9DBB 0BE9 3669 64F1 3485  5E22 55F9 6FCF 8231 B6DD
 editor_neovim_key_file: neovim_ppa.asc
 
+# luarocks is what neovim plugin managers (lazy.nvim, rocks.nvim) use for
+# plugins with Lua dependencies.  It accepts Lua 5.1 or 5.3, so 5.1 -- the
+# version neovim's LuaJIT speaks -- and its headers are named, rather than
+# left to whichever alternative apt resolves first.
 editor_packages:
+  - liblua5.1-0-dev
+  - lua5.1
+  - luarocks
   - neovim
+  - xxd
 
 # `vi` and `vim` are alternatives, so pointing them at nvim keeps the
 # packages that own those names installable, and the change reversible with

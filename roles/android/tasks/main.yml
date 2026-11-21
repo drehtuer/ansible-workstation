@@ -1,0 +1,6 @@
+---
+- name: Install the Android platform tools
+  become: true
+  ansible.builtin.apt:
+    name: "{{ android_packages }}"
+    state: present

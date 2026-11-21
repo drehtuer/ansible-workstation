@@ -1,0 +1,31 @@
+---
+# QEMU/KVM with libvirt, all from the Ubuntu archive.  `qemu-kvm` is only a
+# virtual package on 24.04 and 26.04, so the real one is named.  cpu-checker
+# provides `kvm-ok`.
+#
+# Inside WSL, /dev/kvm exists only when the VM has nested virtualization --
+# Windows 11, `nestedVirtualization=true` in .wslconfig, which the wslconfig
+# role pins.  Without it everything installs, and QEMU falls back to TCG
+# emulation, which works but is slow.
+#
+# libvirtd listens on a unix socket only.  Its `default` network is a NAT
+# bridge, virbr0, whose dnsmasq answers the VMs on it and nothing else -- it
+# serves no other machine.
+kvm_packages:
+  - cpu-checker
+  - libvirt-clients
+  - libvirt-daemon-system
+  - ovmf
+  - qemu-system-x86
+  - qemu-utils
+  - virtinst
+
+# Membership in kvm opens /dev/kvm, membership in libvirt the system libvirtd
+# socket.  libvirt is equivalent to root, like docker.  The account comes from
+# the vault by way of `workstation_user` -- see the docker role for why.
+kvm_manage_groups: true
+kvm_groups:
+  - kvm
+  - libvirt
+kvm_users:
+  - "{{ workstation_user }}"

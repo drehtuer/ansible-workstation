@@ -14,8 +14,14 @@ from pathlib import Path
 from invoke import Context, Exit, task
 
 ROOT = Path(__file__).parent.resolve()
-PLAYBOOKS = ["playbooks/site.yml", "playbooks/windows.yml"]
-UBUNTU_TARGETS = ["24.04", "26.04"]
+PLAYBOOKS = [
+    "playbooks/site.yml",
+    "playbooks/windows.yml",
+    "playbooks/maintenance.yml",
+]
+# The first entry is the default target: `invoke converge` with no
+# `--ubuntu` uses it.
+UBUNTU_TARGETS = ["26.04", "24.04"]
 
 VAULT_PASSWORD_FILE = Path.home() / ".config" / "ansible" / "vault_pass"
 VAULT_FILE = ROOT / "inventory" / "group_vars" / "all" / "vault.yml"
@@ -116,7 +122,7 @@ def apply(c: Context, tags: str = "") -> None:
 @task(
     help={
         "ubuntu": "Ubuntu release to converge against "
-        f"({' or '.join(UBUNTU_TARGETS)})."
+        f"({' or '.join(UBUNTU_TARGETS)}; default {UBUNTU_TARGETS[0]})."
     }
 )
 def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:

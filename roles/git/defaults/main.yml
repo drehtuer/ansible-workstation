@@ -1,9 +1,19 @@
 ---
-# git itself plus the two forge CLIs.  Both come from the Ubuntu archive, so
-# no extra apt repository is needed; they trail upstream by a release or two.
+# git itself, git-lfs and the two forge CLIs.  All come from the Ubuntu
+# archive, so no extra apt repository is needed; they trail upstream by a
+# release or two.
 git_packages:
   - gh
   - git
+  - git-lfs
   - glab
+
+# What `git lfs install` writes to ~/.gitconfig, set key by key so a re-run
+# reports no change.  Applied only while git-lfs is in git_packages.
+git_lfs_config:
+  - {name: "filter.lfs.clean", value: "git-lfs clean -- %f"}
+  - {name: "filter.lfs.smudge", value: "git-lfs smudge -- %f"}
+  - {name: "filter.lfs.process", value: "git-lfs filter-process"}
+  - {name: "filter.lfs.required", value: "true"}
 git_default_branch: main
 git_editor: nvim

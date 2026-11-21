@@ -1,0 +1,39 @@
+# Written by ansible-workstation, roles/wsl_compact, and run elevated.
+# Compacts the virtual disk of the WSL distro {{ wsl_compact_distro }}.
+$ErrorActionPreference = 'Stop'
+$vhd = '{{ wsl_compact_vhd }}'
+$log = Join-Path $env:TEMP 'wsl_compact.log'
+Start-Transcript -Path $log -Force | Out-Null
+try {
+    Start-Sleep -Seconds {{ wsl_compact_delay | int }}
+    wsl.exe --shutdown
+
+    # The VHD is free once it can be opened exclusively.
+    $deadline = (Get-Date).AddSeconds({{ wsl_compact_release_timeout | int }})
+    while ($true) {
+        try {
+            [IO.File]::Open($vhd, 'Open', 'ReadWrite', 'None').Close()
+            break
+        } catch {
+            if ((Get-Date) -gt $deadline) {
+                throw "WSL did not release $vhd in time"
+            }
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    $before = (Get-Item $vhd).Length
+    $script = Join-Path $env:TEMP 'wsl_compact.diskpart'
+    Set-Content -Path $script -Encoding ascii -Value @(
+        "select vdisk file=`"$vhd`"",
+        'attach vdisk readonly',
+        'compact vdisk',
+        'detach vdisk'
+    )
+    diskpart.exe /s $script
+    Remove-Item $script
+    $after = (Get-Item $vhd).Length
+    '{0:N1} GB -> {1:N1} GB' -f ($before / 1GB), ($after / 1GB)
+} finally {
+    Stop-Transcript | Out-Null
+}
