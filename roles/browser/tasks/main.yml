@@ -1,0 +1,48 @@
+---
+- name: Install the deb822 apt source support
+  become: true
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Ensure the apt keyring directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ browser_mozilla_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Install the Mozilla signing key
+  become: true
+  ansible.builtin.copy:
+    src: "{{ browser_mozilla_key_file }}"
+    dest: "{{ browser_mozilla_keyring }}"
+    mode: "0644"
+
+- name: Add the Mozilla repository
+  become: true
+  ansible.builtin.deb822_repository:
+    name: mozilla
+    types: [deb]
+    uris: "{{ browser_mozilla_repo_uri }}"
+    suites: "{{ browser_mozilla_repo_suite }}"
+    components: [main]
+    signed_by: "{{ browser_mozilla_keyring }}"
+    state: present
+
+# Written before the install, so the very first apt run already prefers
+# Mozilla's firefox over the snap stub.
+- name: Prefer Mozilla over the archive for firefox
+  become: true
+  ansible.builtin.template:
+    src: mozilla.pref.j2
+    dest: /etc/apt/preferences.d/mozilla.pref
+    mode: "0644"
+
+# No cache_valid_time: the source above may have just been added.
+- name: Install the browser
+  become: true
+  ansible.builtin.apt:
+    name: "{{ browser_packages }}"
+    state: present
+    update_cache: true

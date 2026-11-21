@@ -1,0 +1,6 @@
+---
+- name: Install the Python packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ python_packages }}"
+    state: present

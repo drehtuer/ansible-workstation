@@ -1,0 +1,31 @@
+---
+# Settings for the WSL 2 VM as a whole, in %UserProfile%\.wslconfig on the
+# Windows side.  /etc/wsl.conf, managed by the wsl role, is per distro; this
+# file is global to every distro on the machine.  Key reference:
+# https://learn.microsoft.com/en-us/windows/wsl/wsl-config
+#
+# Nothing here takes effect until the VM restarts: `wsl --shutdown` from
+# Windows.  The role never runs that itself -- it would kill the distro the
+# playbook is running in.
+wslconfig_powershell: >-
+  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+
+# `mirrored` gives WSL the host's own interfaces and addresses instead of a
+# NAT subnet behind a virtual switch: localhost works in both directions, and
+# the LAN sees the machine under one address.  Needs Windows 11 22H2.
+wslconfig_networking_mode: mirrored
+
+# Forwards localhost ports from the VM to Windows.  Microsoft documents it as
+# ignored in mirrored mode, which shares localhost anyway; it is set so that
+# switching back to `nat` keeps the behaviour.
+wslconfig_localhost_forwarding: true
+
+# Returns memory the VM no longer uses to Windows.  `dropCache` reclaims the
+# page cache as soon as the VM is idle, `gradual` releases it slowly,
+# `disabled` keeps it.  Current WSL defaults to dropCache; older builds
+# shipped with it disabled, so it is pinned rather than assumed.
+wslconfig_memory_reclaim: dropCache
+
+# Lets the VM expose /dev/kvm, which the kvm role needs.  Windows 11 only;
+# on by default there, pinned so that it stays on.
+wslconfig_nested_virtualization: true

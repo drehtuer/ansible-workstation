@@ -1,0 +1,69 @@
+---
+- name: Install the KVM packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ kvm_packages }}"
+    state: present
+
+- name: Look for /dev/kvm
+  ansible.builtin.stat:
+    path: /dev/kvm
+  register: kvm_device
+
+# A warning, not a failure: a container has no /dev/kvm either, and QEMU
+# still runs without it, only slowly.
+- name: Warn when hardware acceleration is unavailable
+  ansible.builtin.debug:
+    msg: >-
+      /dev/kvm does not exist, so VMs will run under slow TCG emulation.
+      On WSL this needs Windows 11 and nestedVirtualization=true in
+      .wslconfig (the wslconfig role), then `wsl --shutdown`.
+  when: not kvm_device.stat.exists
+
+- name: Read the local accounts
+  ansible.builtin.getent:
+    database: passwd
+  when: kvm_manage_groups | bool
+  tags: [secrets]
+
+- name: Assert that this host has an account name in the vault
+  ansible.builtin.assert:
+    that:
+      - kvm_users | select | list | length == kvm_users | length
+    fail_msg: >-
+      No vault_workstation_user for {{ ansible_hostname }}. Create this
+      machine's vault with `invoke vault-init --host`; see README,
+      "Values that differ per machine".
+  when: kvm_manage_groups | bool
+  tags: [secrets]
+
+# ansible.builtin.user would create a missing account; never let it.
+- name: Assert that those accounts exist on this machine
+  ansible.builtin.assert:
+    that:
+      - kvm_users | difference(ansible_facts.getent_passwd | list) |
+        length == 0
+    fail_msg: >-
+      vault_workstation_user names an account that does not exist on
+      {{ ansible_hostname }}. Fix it with `invoke vault-edit --host`, or
+      create the account first -- this role never creates one.
+  when: kvm_manage_groups | bool
+  tags: [secrets]
+
+- name: Add the user account to the kvm and libvirt groups
+  become: true
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ kvm_groups }}"
+    append: true
+  loop: "{{ kvm_users }}"
+  when: kvm_manage_groups | bool
+  no_log: true
+  tags: [secrets]
+
+- name: Enable the libvirt service
+  become: true
+  ansible.builtin.systemd_service:
+    name: libvirtd
+    enabled: true
+  when: ansible_service_mgr == "systemd"

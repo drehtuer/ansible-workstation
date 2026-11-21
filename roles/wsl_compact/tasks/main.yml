@@ -1,0 +1,96 @@
+---
+- name: Trim the free blocks of every mounted filesystem
+  become: true
+  ansible.builtin.command:
+    argv: [fstrim, --all, --verbose]
+  register: wsl_compact_fstrim
+  # fstrim prints one line per filesystem it trimmed; none means nothing to
+  # hand back.
+  changed_when: wsl_compact_fstrim.stdout | trim | length > 0
+
+- name: Compact the virtual disk from Windows
+  when: wsl_compact_diskpart | bool
+  tags: [interactive]
+  block:
+    - name: Assert that the distro is known
+      ansible.builtin.assert:
+        that:
+          - ansible_env.WSL_DISTRO_NAME is defined
+        fail_msg: >-
+          WSL_DISTRO_NAME is not set, so the distro's disk cannot be found.
+          Run the playbook from a WSL shell, without sudo.
+        quiet: true
+
+    # The registry lookup Microsoft documents for this, in
+    # https://learn.microsoft.com/en-us/windows/wsl/disk-space
+    - name: Locate the distro's virtual disk
+      ansible.builtin.command:
+        argv:
+          - "{{ wsl_compact_powershell }}"
+          - -NoProfile
+          - -NonInteractive
+          - -Command
+          - >-
+            $d = Get-ChildItem '{{ wsl_compact_lxss_key }}'
+            | Where-Object { $_.GetValue('DistributionName') -eq
+            '{{ ansible_env.WSL_DISTRO_NAME }}' };
+            [Console]::Out.Write(
+            ($d.GetValue('BasePath') -replace '^\\\\\?\\', '')
+            + '\ext4.vhdx')
+      register: wsl_compact_vhd_path
+      changed_when: false
+      check_mode: false
+
+    - name: Resolve the Windows temporary directory
+      ansible.builtin.command:
+        argv:
+          - "{{ wsl_compact_powershell }}"
+          - -NoProfile
+          - -NonInteractive
+          - -Command
+          - "[Console]::Out.Write($env:TEMP)"
+      register: wsl_compact_temp
+      changed_when: false
+      check_mode: false
+
+    - name: Translate the temporary directory into a WSL path
+      ansible.builtin.command:
+        argv: [wslpath, -u, "{{ wsl_compact_temp.stdout | trim }}"]
+      register: wsl_compact_temp_wsl
+      changed_when: false
+      check_mode: false
+
+    - name: Write the compaction script
+      vars:
+        wsl_compact_distro: "{{ ansible_env.WSL_DISTRO_NAME }}"
+        wsl_compact_vhd: "{{ wsl_compact_vhd_path.stdout | trim }}"
+      ansible.builtin.template:
+        src: wsl_compact.ps1.j2
+        dest: "{{ wsl_compact_temp_wsl.stdout | trim }}/wsl_compact.ps1"
+        mode: "0644"
+
+    # -Verb RunAs is the only way WSL interop can obtain elevation, and it
+    # always asks: this is where the UAC prompt appears.  The elevated
+    # process is detached, shuts WSL down after the delay, and logs to
+    # %TEMP%\wsl_compact.log.
+    - name: Start the elevated compaction (raises an interactive UAC prompt)
+      ansible.builtin.command:
+        argv:
+          - "{{ wsl_compact_powershell }}"
+          - -NoProfile
+          - -NonInteractive
+          - -Command
+          - >-
+            Start-Process -Verb RunAs -WindowStyle Hidden
+            -FilePath powershell.exe -ArgumentList '-NoProfile',
+            '-ExecutionPolicy','Bypass','-File',
+            '{{ wsl_compact_temp.stdout | trim }}\wsl_compact.ps1'
+      changed_when: true
+
+    - name: Announce the shutdown
+      ansible.builtin.debug:
+        msg: >-
+          Once the UAC prompt is accepted, WSL shuts down in
+          {{ wsl_compact_delay }} seconds and the disk is compacted. The
+          result is in %TEMP%\wsl_compact.log; open a new terminal
+          afterwards.

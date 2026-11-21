@@ -1,0 +1,41 @@
+---
+# Claude Code, from Anthropic's own apt repository.
+#
+# The Ubuntu archive does not ship it at all, so there is no archive version
+# to prefer.  Of the upstream channels, apt is the one that fits here:
+#
+#   * the native installer (curl | bash) is not idempotent, its Linux
+#     binaries are not code-signed, and it updates itself behind apt's back
+#   * the npm package would make this role shell out to npm, which the
+#     working agreements rule out
+#
+# The apt package is signed by the repository key, does not update itself,
+# and is kept current by the `safe` upgrade in the base role like any other
+# package.
+#
+# Two channels exist.  `stable` serves a release about a week old and skips
+# ones with major regressions; `latest` serves every release as it ships.
+# The channel names both the repository path and its suite.  Switching from
+# latest to stable does not downgrade: apt keeps the newer installed version
+# until stable overtakes it.
+claude_channel: stable
+claude_repo_uri: >-
+  https://downloads.claude.ai/claude-code/apt/{{ claude_channel }}
+claude_repo_suite: "{{ claude_channel }}"
+claude_keyring: /etc/apt/keyrings/claude-code.asc
+
+# The signing key ships with the role, in files/.  It is public data, and
+# having it here keeps provisioning independent of downloads.claude.ai
+# answering before apt needs it.  Refresh with:
+#
+#   curl -fsSL https://downloads.claude.ai/keys/claude-code.asc \
+#     -o roles/claude/files/claude-code.asc
+#
+# and check the fingerprint before committing:
+#
+#   gpg --show-keys roles/claude/files/claude-code.asc
+#   # 31DD DE24 DDFA B679 F42D  7BD2 BAA9 29FF 1A7E CACE
+claude_key_file: claude-code.asc
+
+claude_packages:
+  - claude-code

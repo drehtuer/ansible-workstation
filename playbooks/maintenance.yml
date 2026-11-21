@@ -1,0 +1,39 @@
+---
+# Manual WSL maintenance.  Never part of site.yml, and nothing here runs
+# without naming it: every role carries the special `never` tag, so pick one.
+#
+#   uv run ansible-playbook playbooks/maintenance.yml --tags wsl_shutdown
+#   uv run ansible-playbook playbooks/maintenance.yml --tags wsl_compact
+#   uv run ansible-playbook playbooks/maintenance.yml --tags wsl_update
+#
+# All three end by shutting WSL down, which ends this run too.
+- name: Maintain the WSL VM
+  hosts: all
+  connection: local
+  gather_facts: true
+
+  pre_tasks:
+    - name: Assert that a maintenance task was named
+      ansible.builtin.assert:
+        that:
+          - ansible_run_tags | difference(['all']) | length > 0
+        fail_msg: >-
+          Nothing selected. Run with --tags wsl_shutdown, --tags wsl_compact
+          or --tags wsl_update.
+      tags: [always]
+
+    - name: Assert that this runs inside WSL
+      ansible.builtin.assert:
+        that:
+          - ansible_env.WSL_DISTRO_NAME is defined
+            or '/proc/sys/fs/binfmt_misc/WSLInterop' is exists
+        fail_msg: These tasks maintain the WSL VM and only work inside WSL.
+      tags: [always]
+
+  roles:
+    - role: wsl_compact
+      tags: [never, wsl_compact]
+    - role: wsl_update
+      tags: [never, wsl_update]
+    - role: wsl_shutdown
+      tags: [never, wsl_shutdown]

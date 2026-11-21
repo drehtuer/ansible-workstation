@@ -1,0 +1,11 @@
+---
+# The system Python and the tools around it.  The archive's python3 is the
+# one Ubuntu itself depends on, so it is not replaced, only completed.
+#
+# python3-pip installs pip, but PEP 668 still refuses `pip install` into the
+# system Python: use a venv, or pipx for command-line tools.
+python_packages:
+  - pipx
+  - python-is-python3
+  - python3-pip
+  - python3-venv

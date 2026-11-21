@@ -1,0 +1,34 @@
+---
+# Firefox, from Mozilla's own apt repository.
+#
+# The archive's `firefox` is not a browser: on 24.04 and 26.04 alike it is a
+# transitional package, version 1:1snap1, that pre-depends on snapd and
+# installs the snap.  That needs snapd running, which a WSL distro without
+# systemd and every container lack, and it puts the browser outside apt.
+# Mozilla publishes the real thing as a .deb.
+browser_mozilla_repo_uri: https://packages.mozilla.org/apt
+browser_mozilla_repo_suite: mozilla
+browser_mozilla_keyring: /etc/apt/keyrings/packages.mozilla.org.asc
+
+# The signing key ships with the role, in files/.  The repository is hosted
+# on Google Artifact Registry, which is why the key's uid names Google.
+# Refresh with:
+#
+#   curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
+#     -o roles/browser/files/mozilla.asc
+#
+# and check the fingerprint before committing:
+#
+#   gpg --show-keys roles/browser/files/mozilla.asc
+#   # 35BA A0B3 3E9E B396 F59C  A838 C0BA 5CE6 DC63 15A3
+browser_mozilla_key_file: mozilla.asc
+
+# The snap stub carries epoch 1, so it outranks every Mozilla version by
+# number.  1000 is the priority at which apt takes a pinned version even
+# when that is a "downgrade" -- which is what replaces an installed stub.
+# The pin covers firefox* only: the same repository also carries other
+# Mozilla products, and they should not win by accident.
+browser_mozilla_pin_priority: 1000
+
+browser_packages:
+  - firefox

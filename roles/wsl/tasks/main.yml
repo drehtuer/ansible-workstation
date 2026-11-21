@@ -1,4 +1,17 @@
 ---
+# The environment variable is set by WSL in every login shell, and
+# WSLInterop is registered only inside WSL.  A container running on a WSL
+# host shares its kernel but has neither, so the checks stay out of it.
+- name: Run the WSL health checks
+  ansible.builtin.include_tasks:
+    file: check.yml
+    apply:
+      tags: [wsl_check]
+  when: >-
+    ansible_env.WSL_DISTRO_NAME is defined
+    or '/proc/sys/fs/binfmt_misc/WSLInterop' is exists
+  tags: [wsl_check]
+
 - name: Configure /etc/wsl.conf
   become: true
   community.general.ini_file:

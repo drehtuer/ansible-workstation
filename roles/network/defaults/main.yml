@@ -1,0 +1,13 @@
+---
+# Diagnosing and inspecting the network.  All from the Ubuntu archive.
+#
+# wireshark-common asks whether dumpcap should be installed setuid; apt runs
+# non-interactively here, so the answer is the default, "no".  Capturing
+# therefore needs root until that is changed -- see README, "Network tools".
+network_packages:
+  - bind9-dnsutils
+  - iputils-ping
+  - net-tools
+  - socat
+  - tshark
+  - wireshark

@@ -1,0 +1,40 @@
+---
+- name: Install the deb822 apt source support
+  become: true
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Ensure the apt keyring directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ claude_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Install the Claude Code signing key
+  become: true
+  ansible.builtin.copy:
+    src: "{{ claude_key_file }}"
+    dest: "{{ claude_keyring }}"
+    mode: "0644"
+
+- name: Add the Claude Code repository
+  become: true
+  ansible.builtin.deb822_repository:
+    name: claude-code
+    types: [deb]
+    uris: "{{ claude_repo_uri }}"
+    suites: "{{ claude_repo_suite }}"
+    components: [main]
+    signed_by: "{{ claude_keyring }}"
+    state: present
+
+# No cache_valid_time: the source above may have just been added or
+# repointed to the other channel, and a merely recent cache would not know.
+- name: Install Claude Code
+  become: true
+  ansible.builtin.apt:
+    name: "{{ claude_packages }}"
+    state: present
+    update_cache: true

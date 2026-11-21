@@ -9,10 +9,11 @@
 :pages-url: https://drehtuer.github.io/ansible-workstation
 
 Ansible playbooks that turn a freshly installed WSL distribution into a
-ready-to-use development workstation: the user's tools, dotfiles and settings,
+ready-to-use development workstation: the user's tools and settings,
 reproducibly and idempotently.
 
-Target distributions: *Ubuntu 24.04 LTS* and *Ubuntu 26.04 LTS*.
+Target distributions: *Ubuntu 26.04 LTS*, the default, and *Ubuntu 24.04
+LTS*, still supported.
 
 [IMPORTANT]
 ====
@@ -51,16 +52,23 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   shared by every machine, plus one per machine under `host_vars/`.
 
 | Playbooks
-| `playbooks/site.yml` (Linux) and `playbooks/windows.yml` (opt-in).
+| `playbooks/site.yml` (Linux), `playbooks/windows.yml` (opt-in) and
+  `playbooks/maintenance.yml` (manual, see <<maintenance>>).
 
 | Roles
-| `wsl`, `base`, `shell`, `git`, `editor`, `docker`, `fonts`, `languages`,
-  `nodejs`, `dotfiles`, `windows`. All but `languages` and `dotfiles` install
-  the real toolset — see <<toolset>>.
+| `wsl`, `base`, `shell`, `git`, `editor`, `docker`, `fonts`, `nodejs`,
+  `claude`, `network`, `python`, `android`, `browser`, `kvm` on the Linux
+  side; `wslconfig` and `windows` on the Windows side; `wsl_compact`,
+  `wsl_update` and `wsl_shutdown` on request only. All but `windows`, whose
+  inputs are still empty, install the real toolset — see <<toolset>>.
 
 | Secret handling
 | Vault indirection, `secrets` tag, `no_log`, pre-commit guard, `.gitattributes`
   textconv, `.gitignore` patterns.
+
+| Default target
+| Ubuntu 26.04. `invoke converge` uses it when `--ubuntu` is not given; 24.04
+  stays supported and in the CI matrix.
 
 | CI
 | GitHub Actions: lint job, then a converge matrix over both Ubuntu releases.
@@ -77,8 +85,9 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   `~/.ssh` bind-mounted from the host.
 
 | Dependency lock
-| `uv.lock` + `requirements.txt` committed. 35 packages, `ansible-core` 2.19.12,
-  resolved against CPython 3.12. `package-lock.json` pins Antora separately.
+| `uv.lock` + `requirements.txt` committed. 33 packages, `ansible-core` 2.21.6
+  — the newest line that runs on both 24.04's Python 3.12 and 26.04's 3.14 —
+  resolved against CPython 3.14. `package-lock.json` pins Antora separately.
 
 | Remote
 | `origin` → {repo-url}[drehtuer/ansible-workstation], public.
@@ -120,7 +129,11 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   selector, and an untagged repository still builds — as this one does, with
   `main` as its only version.
 * `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
-  reports `changed=0`, so the roles are observably idempotent.
+  reports `changed=0`, so the roles are observably idempotent. That includes
+  `claude`, which adds Anthropic's repository and installs `claude-code` on
+  the first pass and reports `ok` on the second.
+* The `ansible-core` 2.21 lock works on both releases' own Python: `invoke
+  lint` and `invoke syntax` pass on 24.04's 3.12 and on 26.04's 3.14.
 * The toolset arrives, checked inside a converged container: every requested
   binary is on `PATH`, `vi` and `vim` both resolve to `/usr/bin/nvim`, neovim
   is the PPA build rather than the archive's, `docker buildx` and `docker
@@ -134,22 +147,25 @@ The playbook has never run on a *real* WSL machine — only in containers, as
 root, with the `secrets` tag skipped. Still untested:
 
 * `become` against a real sudo prompt
-* everything in `roles/windows`, which needs a Windows host and cannot run in
-  CI at all
-* enabling the docker service, which is skipped where systemd is not the init
-  system, and a container has no init at all
+* everything in `roles/windows`, `roles/wslconfig`, `roles/wsl_compact`,
+  `roles/wsl_update` and `roles/wsl_shutdown`, which need a Windows host and
+  cannot run in CI at all. The distro's VHD path lookup was run by hand on a
+  real WSL host and returns the right file, and a process started the way
+  the shutdown is scheduled was seen to outlive the call that started it.
+  The shutdown, the update and the compaction themselves have not been run.
+* the WSL health checks run only inside WSL, so CI skips them; their
+  `wsl.exe --version` parsing was checked by hand against WSL 3.0.5
+* enabling the docker and libvirt services, which is skipped where systemd is
+  not the init system, and a container has no init at all
+* KVM with hardware acceleration: a container has no `/dev/kvm`, so only the
+  installation and the warning for its absence are exercised
 
 [#roadmap]
 == Roadmap
 
 Ordered roughly by dependency.
 
-. *Fill in the remaining roles.* `languages` and `dotfiles` still hold
-  placeholder lists; every other role now carries the real toolset,
-  see <<toolset>>.
 . *Create the vault.* `invoke vault-init`, then move the git identity into it.
-. *Dotfiles content.* `dotfiles_files` and `dotfiles_templates` are empty lists;
-  add the actual files under `roles/dotfiles/{files,templates}/`.
 . *Windows side.* `roles/windows` has working task shapes but empty inputs —
   populate `windows_files`, `windows_fonts`, `windows_winget_packages`. The
   Fira Code Nerd Font belongs in `windows_fonts`: it is installed inside WSL
@@ -162,10 +178,26 @@ Ordered roughly by dependency.
 
 * *Separate vault passwords per profile.* Designed, then dropped — the fork
   model makes it unnecessary. See <<separation>>.
-* *A dotfile manager* (stow, chezmoi, yadm). See <<dotfiles>>.
+* *The `dotfiles` role.* Removed while it still held nothing but empty
+  lists. Dotfiles — `keychain` and where SSH keys are kept included — belong
+  to a separate dotfiles repository that syncs them, not to this one.
+* *A VS Code role.* VS Code runs on Windows, and its WSL extension installs
+  the matching VS Code server into the distro by itself on the first
+  connection; there is nothing left for a role to do.
+* *Checking GitHub for a newer WSL.* Replaced by `--tags wsl_update`, which
+  installs it, see <<maintenance>>.
+* *A dotfile manager* (stow, chezmoi, yadm). Should dotfiles ever come back,
+  plain `ansible.builtin.template` and `ansible.builtin.copy` already offer
+  everything such a tool adds — templating, per-host variation, idempotent
+  placement, secret injection from the vault — without a second templating
+  syntax and a second source of truth.
 * *Molecule.* The converge task drives a throwaway container directly; Molecule
   would add a heavy dependency for the same result.
 * *A Makefile.* Replaced by Invoke, see <<testing>>.
+* *Configuring a Hyper-V switch* — a fixed subnet for WSL's NAT switch or for
+  Hyper-V's Default Switch. Hyper-V is outside what this repository manages,
+  and mirrored networking (see <<wslconfig>>) removes WSL's own subnet
+  anyway.
 
 == Design goals
 
@@ -209,10 +241,10 @@ package.
 [project]
 name = "ansible-workstation"
 requires-python = ">=3.12"
-dependencies = ["ansible-core>=2.18,<2.20"]
+dependencies = ["ansible-core>=2.21,<2.22"]
 
 [dependency-groups]
-dev = ["ansible-lint>=25.0", "yamllint>=1.35", "ruff>=0.9", "invoke>=2.2"]
+dev = ["ansible-lint>=26.11", "yamllint>=1.38", "ruff>=0.17", "invoke>=3.0"]
 
 [tool.uv]
 package = false            # <1>
@@ -365,15 +397,27 @@ throwaway converge tests only.
 │           └── vault.yml      <12>
 ├── playbooks/
 │   ├── site.yml               <13>
-│   └── windows.yml            <14>
+│   ├── windows.yml            <14>
+│   └── maintenance.yml
 ├── roles/
 │   ├── wsl/                   <15>
 │   ├── base/
 │   ├── shell/
 │   ├── git/
 │   ├── editor/
-│   ├── languages/
-│   ├── dotfiles/              <16>
+│   ├── docker/
+│   ├── fonts/
+│   ├── nodejs/
+│   ├── claude/
+│   ├── network/
+│   ├── python/
+│   ├── android/
+│   ├── browser/               <16>
+│   ├── kvm/
+│   ├── wslconfig/
+│   ├── wsl_compact/
+│   ├── wsl_update/
+│   ├── wsl_shutdown/
 │   └── windows/               <17>
 ├── scripts/
 │   ├── install-uv.sh          <18>
@@ -407,7 +451,7 @@ throwaway converge tests only.
 <13> Entry point for the Linux/WSL side.
 <14> Windows-side configuration, opt-in.
 <15> `/etc/wsl.conf`, interop, systemd, Windows path handling.
-<16> Plain Ansible templates — no external dotfile manager, see <<dotfiles>>.
+<16> Firefox from Mozilla's apt repository, not the snap, see <<firefox>>.
 <17> Windows tasks driven through WSL interop.
 <18> Standalone `uv` installer, shared by host and devcontainer.
 <19> Pre-commit guard against plaintext vaults and stray password files.
@@ -438,7 +482,7 @@ Anything the task runner does not cover can be run directly:
 
 [source,bash]
 ----
-uv run ansible-playbook playbooks/site.yml --skip-tags languages
+uv run ansible-playbook playbooks/site.yml --skip-tags android
 ----
 
 == Configuration model
@@ -541,18 +585,24 @@ visible from where it sits.
 
 | `base`
 | An apt cache refresh and a `safe` upgrade, then the system utilities:
-  `aptitude`, `ascii`, `bash`, `build-essential`, `ca-certificates`, `curl`,
-  `htop`, `iputils-ping`, `jq`, `less`, `man-db`, `net-tools`, `rsync`,
-  `software-properties-common`, `sudo`, `tree`, `unzip`, `wget`, `xxd`
+  `aptitude`, `ascii`, `bash`, `bsdutils`, `btop`, `build-essential`,
+  `ca-certificates`, `coreutils`, `curl`, `diffutils`, `dos2unix`,
+  `findutils`, `grep`,
+  `gzip`, `htop`, `jq`, `less`, `man-db`, `manpages`, `manpages-dev`, `rsync`,
+  `software-properties-common`, `sudo`, `tree`, `unzip`, `usbutils`, `wget`,
+  `zstd`
 
 | `shell`
-| `bash-completion`, `fzf`, `ripgrep`, `screen`, `tmux`, and the login shell
+| `bash-completion`, `fzf`, `ripgrep`, `screen`, `tmux`, `wl-clipboard` (the
+  Windows clipboard, through WSLg), and the login shell
 
 | `git`
-| `git` plus the forge CLIs `gh` and `glab`, and the global git configuration
+| `git` and `git-lfs`, the forge CLIs `gh` and `glab`, and the global git
+  configuration, including the LFS filters
 
 | `editor`
-| `neovim` from the upstream PPA, and the `vi` / `vim` alternatives
+| `neovim` from the upstream PPA, the `vi` / `vim` alternatives, `xxd`, and
+  `luarocks` with Lua 5.1 and its headers for plugins with Lua dependencies
 
 | `docker`
 | `docker.io`, `docker-buildx`, `docker-compose-v2`, and group membership
@@ -562,6 +612,26 @@ visible from where it sits.
 
 | `nodejs`
 | The node runtime and npm, from NodeSource, pinned to a major line
+
+| `claude`
+| Claude Code, from Anthropic's apt repository, on the `stable` channel
+
+| `network`
+| `bind9-dnsutils`, `iputils-ping`, `net-tools`, `socat`, `tshark`,
+  `wireshark`
+
+| `python`
+| `python-is-python3`, `python3-pip`, `python3-venv`, `pipx`
+
+| `android`
+| `adb` and `fastboot`
+
+| `browser`
+| Firefox, from Mozilla's apt repository
+
+| `kvm`
+| QEMU, libvirt, `virt-install`, OVMF and `kvm-ok`, and membership in the
+  `kvm` and `libvirt` groups
 |===
 
 Node is the clearest case for that second source: 24.04's archive still
@@ -570,8 +640,9 @@ offers 18.x, a line that went end-of-life in April 2025.
 The Ubuntu archive is the *default* source, not a vow. It trails upstream by
 a release or two, which is unremarkable for `jq` and fatal for a runtime that
 has gone end-of-life — so when the archive's version cannot do the job, this
-repository takes the upstream source instead. Today that means the neovim PPA
-and NodeSource; the list is expected to grow, not to stay at two.
+repository takes the upstream source instead — or when the archive has no
+version at all. Today that means the neovim PPA, NodeSource, Anthropic's
+Claude Code repository and Mozilla's; the list is expected to grow.
 
 What it is not is free. Each source is a keyring to keep current, a party
 trusted to run code on this machine, and one more thing that can go missing
@@ -679,6 +750,36 @@ NOTE: npm comes inside NodeSource's `nodejs` package. Do not add Ubuntu's
 separate `npm` package anywhere: it depends on the archive's node and drags
 it back in.
 
+[#claude]
+=== Claude Code
+
+The archive does not carry Claude Code, so it comes from Anthropic's own apt
+repository at `downloads.claude.ai`, added the same way as every other source
+here, with the key committed under `roles/claude/files/`.
+
+[source,yaml]
+----
+claude_channel: stable   # <1>
+----
+<1> `stable` serves a release about a week old and skips ones with major
+    regressions; `latest` serves every release as it ships. The channel
+    names both the repository path and its suite.
+
+Anthropic also offers a native installer and an npm package. Neither fits:
+
+* the installer is `curl | bash`, which is not idempotent, and its Linux
+  binaries are not code-signed — the apt repository is
+* the npm package would have a role shell out to `npm`, which is ruled out
+  here
+* both update themselves outside apt; the apt package does not, so the `safe`
+  upgrade in `base` keeps it current like everything else
+
+Switching `latest` back to `stable` does not downgrade: apt keeps the newer
+version installed until `stable` overtakes it.
+
+The role installs the program, nothing more. Logging in and
+`~/.claude/settings.json` stay with the user.
+
 === Docker
 
 `docker.io` is the engine as Ubuntu ships it, with `docker-buildx` and
@@ -734,6 +835,77 @@ running the show.
 NOTE: This sets the daemon's default, which the default bridge uses. A
 network created earlier keeps the MTU it was created with; `docker network
 rm` and let it be recreated, or pass the MTU when creating it.
+
+[#network]
+=== Network tools
+
+`wireshark` and `tshark` capture through `dumpcap`. Installing
+`wireshark-common` asks whether `dumpcap` should be setuid; apt runs
+non-interactively here, so it gets the default answer, *no*, and capturing
+needs `sudo`. Inside WSL the interfaces are those of the WSL VM, not the
+Windows host's.
+
+[#android]
+=== Android tools
+
+`adb` and `fastboot` come from the archive. WSL does not see a USB device on
+its own: attach the phone from Windows with
+link:https://github.com/dorssel/usbipd-win[usbipd-win] first, after which
+`lsusb` (from `usbutils` in `base`) lists it and `adb devices` finds it.
+`adb` over the network needs nothing of the kind.
+
+[#firefox]
+=== Firefox
+
+The archive's `firefox` is not a browser. On 24.04 and 26.04 alike it is a
+transitional package, version `1:1snap1`, that pre-depends on `snapd` and
+installs the snap — which needs snapd running, puts the browser outside apt,
+and fails outright in a container. Mozilla publishes Firefox as a `.deb` in
+its own repository, so it comes from there, with the key committed under
+`roles/browser/files/`.
+
+The stub's epoch makes it outrank every real Firefox by version number, so
+`/etc/apt/preferences.d/mozilla.pref` pins `firefox*` to
+`packages.mozilla.org` at priority 1000 — the level at which apt takes the
+pinned version even as a "downgrade", which is what replaces a stub that is
+already installed. The pin names `firefox*` only: the same repository
+carries other Mozilla products, and they should not win by accident.
+
+Firefox draws through WSLg, so it needs WSL 2 with GUI support, which
+current Windows releases have by default.
+
+[#kvm]
+=== KVM
+
+QEMU and libvirt come from the archive; `qemu-kvm` is only a virtual package
+on both releases, so the role names `qemu-system-x86`. `virt-install` creates
+VMs from the command line, OVMF lets them boot UEFI, and `kvm-ok` says
+whether acceleration is available.
+
+Inside WSL, `/dev/kvm` exists only when the VM has nested virtualization:
+Windows 11, and `nestedVirtualization=true` in `.wslconfig`, which the
+`wslconfig` role pins — see <<wslconfig>>. Without it everything still
+installs and the role prints a warning; QEMU then falls back to TCG
+emulation, which works, slowly.
+
+The account in `workstation_user` joins `kvm`, which opens `/dev/kvm`, and
+`libvirt`, which opens the system libvirtd socket. The account is read and
+checked exactly as for `docker` (see <<per-machine>>), and membership is
+equivalent to root in the same way.
+`kvm_manage_groups: false` opts out.
+
+libvirtd listens on a unix socket only. Its `default` network is a NAT
+bridge, `virbr0`, whose dnsmasq answers the VMs on that bridge and no other
+machine, so it stays within <<state,what this repository provisions>>.
+
+[#python]
+=== Python
+
+The archive's `python3` is the interpreter Ubuntu itself depends on, so it is
+completed rather than replaced: `python-is-python3` makes `python` mean
+`python3`, and `python3-venv` and `pipx` are the two supported ways to
+install anything. `python3-pip` is there for use inside a venv — PEP 668
+still refuses `pip install` into the system Python.
 
 === The Fira Code Nerd Font
 
@@ -865,23 +1037,6 @@ uv run ansible-vault encrypt_string 'secret-value' --name 'vault_some_token'
   print plaintext
 * playbook runs avoid `-vvv` in shared logs; verbose output expands variables
 
-[#dotfiles]
-== Dotfiles
-
-Managed directly by the `dotfiles` role using `ansible.builtin.template` and
-`ansible.builtin.copy`. *No separate dotfile manager* (stow, chezmoi, yadm).
-
-Rationale: Ansible already provides everything such a tool adds — templating,
-per-host variation, idempotent placement, permissions, secret injection from the
-vault. Adding a second tool would mean a second templating syntax, a second
-source of truth, and an ordering dependency between the two.
-
-A dedicated manager would only earn its place if dotfiles had to be deployed on
-machines where Ansible is unavailable. That is not a requirement here.
-
-Static files live in `roles/dotfiles/files/`, anything host-specific in
-`roles/dotfiles/templates/`. Both lists are empty at present.
-
 == Windows configuration
 
 Second topic, opt-in, driven *from WSL* through interop. Disabled by default
@@ -909,19 +1064,50 @@ Second topic, opt-in, driven *from WSL* through interop. Disabled by default
 | see below
 |===
 
-[WARNING]
-====
-Chocolatey requires an elevated shell. WSL interop cannot elevate silently — it
-has to go through `Start-Process -Verb RunAs`, which raises an interactive UAC
-prompt on the Windows desktop. Chocolatey tasks are therefore tagged
-`interactive` and can be skipped with `--skip-tags interactive`. Prefer `winget`
-user-scope installs wherever the package exists.
-====
+[#wslconfig]
+=== The WSL VM: `.wslconfig`
+
+`/etc/wsl.conf` configures one distro, and the `wsl` role manages it. The
+WSL 2 VM that every distro shares is configured on the Windows side, in
+`%UserProfile%\.wslconfig`, and the `wslconfig` role manages that — key by
+key with `ini_file`, so a setting made by hand or in the WSL Settings app
+survives.
+
+[cols="1,1,2", options="header"]
+|===
+| Key | Value here | Why
+
+| `wsl2.networkingMode`
+| `mirrored`
+| WSL gets the host's own interfaces and addresses instead of a NAT subnet:
+  `localhost` works in both directions and the LAN sees one machine.
+  Windows 11 22H2 or later.
+
+| `wsl2.localhostForwarding`
+| `true`
+| Ignored in mirrored mode, which shares `localhost` anyway; set so that
+  switching back to `nat` keeps the behaviour.
+
+| `wsl2.nestedVirtualization`
+| `true`
+| Gives the VM `/dev/kvm`, see <<kvm>>. Windows 11 only.
+
+| `experimental.autoMemoryReclaim`
+| `dropCache`
+| Hands memory the VM no longer uses back to Windows once it is idle.
+  Current WSL defaults to this; older builds shipped with it disabled, so it
+  is pinned. `gradual` releases it slowly instead.
+|===
 
 [source,bash]
 ----
-uv run ansible-playbook playbooks/windows.yml -e manage_windows=true
+uv run ansible-playbook playbooks/windows.yml -e manage_windows=true \
+  --tags memory_reclaim                 # just the memory setting
 ----
+
+Nothing in `.wslconfig` applies until the VM restarts. The role reports a
+change and leaves the restart to you — `wsl --shutdown` from Windows, or
+`--tags wsl_shutdown`, see <<maintenance>>.
 
 [#testing]
 == Testing
@@ -951,9 +1137,9 @@ CI runs *those same tasks*. There is no CI-only command.
 | `invoke apply [--tags …]`
 | Provision this machine for real
 
-| `invoke converge --ubuntu 26.04`
-| Full converge + re-converge in a throwaway Ubuntu container; the second run
-  must report `changed=0`
+| `invoke converge [--ubuntu 24.04]`
+| Full converge + re-converge in a throwaway Ubuntu container, 26.04 unless
+  told otherwise; the second run must report `changed=0`
 
 | `invoke lock`
 | Refresh `uv.lock` and re-export `requirements.txt`
@@ -971,8 +1157,9 @@ CI runs *those same tasks*. There is no CI-only command.
 [CAUTION]
 ====
 `invoke converge` downloads from the internet *inside a container*: the Nerd
-Font from GitHub and node from `deb.nodesource.com`. If those hang while the
-Ubuntu archive works fine, check the MTU rather than the roles:
+Font from GitHub, node from `deb.nodesource.com`, Claude Code from
+`downloads.claude.ai` and Firefox from `packages.mozilla.org`. If those hang
+while the Ubuntu archive works fine, check the MTU rather than the roles:
 
 [source,bash]
 ----
@@ -1037,8 +1224,8 @@ and the usual whitespace fixers.
 
 === CI
 
-GitHub Actions runs a lint job and then a converge matrix over Ubuntu 24.04 and
-26.04, invoking the same tasks:
+GitHub Actions runs a lint job and then a converge matrix over Ubuntu 26.04 and
+24.04, invoking the same tasks:
 
 [source,yaml]
 ----
@@ -1076,6 +1263,9 @@ committed.
 * `/etc/wsl.conf` — hostname, `systemd=true`, `appendWindowsPath`, automount
   options. Changing it requires `wsl --shutdown` to take effect; the `wsl` role
   prints a reminder when it changes the file.
+* `%UserProfile%\.wslconfig` — the VM itself: mirrored networking, memory
+  reclaim, nested virtualization. Managed from the Windows side, see
+  <<wslconfig>>.
 * `appendWindowsPath` defaults to `false` here, to avoid Windows binaries
   shadowing Linux ones. Interop stays on, so `powershell.exe` remains reachable
   by full path.
@@ -1084,6 +1274,81 @@ committed.
 * SSH agent — optionally bridged to the Windows agent instead of running a
   second agent inside WSL.
 * Clipboard — `clip.exe` / `win32yank` for editor integration.
+
+[#wsl-check]
+=== Health checks
+
+Every `site.yml` run inside WSL starts with a few read-only checks, which
+`--tags wsl_check` runs on their own:
+
+[cols="1,1,2", options="header"]
+|===
+| Check | On failure | How
+
+| WSL 2, not WSL 1
+| fails the run
+| the kernel release names `microsoft-standard-WSL2`. WSL 1 has no real
+  kernel, so systemd, docker and KVM cannot work there.
+
+| The running kernel is the one installed WSL ships
+| warns; fails with `wsl_kernel_check_strict: true`
+| compares `uname -r` with `wsl.exe --version`. A mismatch means WSL was
+  updated and the VM has not restarted since.
+|===
+
+A newer WSL is not looked up; it is installed on request with
+`--tags wsl_update`, see <<maintenance>>.
+
+`wsl.exe` writes UTF-16 by default. The checks set `WSL_UTF8=1` and pass it
+to the Windows side through `WSLENV`, and read the versions by position
+rather than by label, because the labels are localised.
+
+Outside WSL — the converge container, CI — the checks are skipped: a
+container on a WSL host shares its kernel, but has neither
+`WSL_DISTRO_NAME` nor the `WSLInterop` registration.
+
+[#maintenance]
+=== Maintenance: shutdown, update and disk compaction
+
+`playbooks/maintenance.yml` holds what should only ever happen on request.
+Every role in it carries the special `never` tag, so nothing runs until one
+is named, and a run that names none stops with a message:
+
+[source,bash]
+----
+uv run ansible-playbook playbooks/maintenance.yml --tags wsl_shutdown
+uv run ansible-playbook playbooks/maintenance.yml --tags wsl_compact
+uv run ansible-playbook playbooks/maintenance.yml --tags wsl_update
+----
+
+`wsl --shutdown` stops the VM, and with it the very run that asked for it.
+So all three hand it to a detached Windows process that waits a few seconds —
+long enough for the play to print its recap — and then shuts WSL down.
+
+`wsl_shutdown`:: Restarts the VM, which applies `/etc/wsl.conf`,
+`.wslconfig` and a WSL update.
+
+`wsl_update`:: Runs `wsl --update`, which installs the newest WSL and its
+kernel, then shuts WSL down so that kernel is the one running. Installing
+may raise a UAC prompt, so the task is tagged `interactive`.
+`wsl_update_pre_release` and `wsl_update_web_download` add the flags of the
+same names. The output lands in `%TEMP%\wsl_update.log`.
+
+`wsl_compact`:: Gives disk space back to Windows. The distro's `ext4.vhdx`
+grows as files are written and does not shrink when they are deleted.
+. `fstrim` inside the distro marks every free block unused. On a sparse VHD
+  that alone returns the space.
+. diskpart's `compact vdisk` then shrinks a VHD that is not sparse. It needs
+  the VHD detached and an elevated shell, so the role writes a script to
+  `%TEMP%`, starts it with `-Verb RunAs` — *Windows raises a UAC prompt* —
+  and the script shuts WSL down, waits for the VHD to be released, compacts
+  it and logs the sizes before and after to `%TEMP%\wsl_compact.log`.
++
+`wsl_compact_diskpart: false`, or `--skip-tags interactive`, runs the
+`fstrim` step alone: no prompt, no shutdown.
+
+This is disk space. The *memory* WSL holds is a different thing, returned to
+Windows by `autoMemoryReclaim`, see <<wslconfig>>.
 
 [#documentation]
 == Documentation

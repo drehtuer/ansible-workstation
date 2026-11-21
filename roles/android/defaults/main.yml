@@ -1,0 +1,7 @@
+---
+# The Android platform tools, from the Ubuntu archive.  WSL sees no USB
+# device until it is attached from Windows with usbipd-win -- see README,
+# "Android tools".
+android_packages:
+  - adb
+  - fastboot

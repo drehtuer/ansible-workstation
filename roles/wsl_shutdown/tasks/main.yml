@@ -1,0 +1,23 @@
+---
+# Start-Process detaches the waiting process from this interop call, so the
+# task returns at once and the process outlives the VM it is about to stop.
+# Requested explicitly every time, so it is a change every time.
+- name: Schedule wsl --shutdown
+  ansible.builtin.command:
+    argv:
+      - "{{ wsl_shutdown_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - >-
+        Start-Process -WindowStyle Hidden -FilePath powershell.exe
+        -ArgumentList '-NoProfile','-NonInteractive','-Command',
+        'Start-Sleep -Seconds {{ wsl_shutdown_delay | int }};
+        wsl.exe --shutdown'
+  changed_when: true
+
+- name: Announce the shutdown
+  ansible.builtin.debug:
+    msg: >-
+      WSL shuts down in {{ wsl_shutdown_delay }} seconds, ending this session
+      and every other one. Open a new terminal to start it again.

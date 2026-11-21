@@ -1,0 +1,13 @@
+---
+# `wsl --update` installs the newest WSL -- and with it the newest kernel --
+# from the Microsoft Store, or from GitHub with --web-download.  The update
+# can stop the running VM itself, and the new kernel only runs after a
+# restart anyway, so the update is handed to a detached Windows process that
+# waits, updates, and shuts WSL down.  Output goes to %TEMP%\wsl_update.log.
+#
+# Installing the package may raise a UAC prompt.
+wsl_update_delay: 5
+wsl_update_pre_release: false
+wsl_update_web_download: false
+wsl_update_powershell: >-
+  /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe

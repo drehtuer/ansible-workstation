@@ -1,0 +1,56 @@
+---
+# Read-only: every task here inspects, none changes anything, so all of them
+# also run under --check.
+
+- name: Assert that this distro runs on WSL 2
+  ansible.builtin.assert:
+    that:
+      - "'microsoft-standard-WSL2' in ansible_kernel"
+    fail_msg: >-
+      This distro runs on WSL 1 (kernel {{ ansible_kernel }}). Convert it
+      from Windows with `wsl --set-version {{ ansible_env.WSL_DISTRO_NAME
+      | default('<distro>') }} 2`.
+    quiet: true
+
+# wsl.exe writes UTF-16 unless WSL_UTF8 is set -- and set on the Windows
+# side, which is what listing it in WSLENV does.  Labels are localised, so
+# the values are read by position: line 1 is WSL, line 2 the kernel.
+- name: Read the installed WSL and kernel versions
+  ansible.builtin.command:
+    argv: ["{{ wsl_exe }}", --version]
+  environment:
+    WSL_UTF8: "1"
+    WSLENV: WSL_UTF8
+  register: wsl_version_output
+  changed_when: false
+  check_mode: false
+
+- name: Compare the running kernel with the installed one
+  vars:
+    wsl_lines: "{{ wsl_version_output.stdout_lines | map('trim') | list }}"
+    wsl_installed: "{{ wsl_lines[0].split()[-1] }}"
+    wsl_kernel_installed: "{{ wsl_lines[1].split()[-1].split('-')[0] }}"
+    wsl_kernel_running: "{{ ansible_kernel.split('-')[0] }}"
+  block:
+    - name: Record whether the kernel is current
+      ansible.builtin.set_fact:
+        wsl_kernel_current: >-
+          {{ wsl_kernel_running == wsl_kernel_installed }}
+
+    - name: Report a kernel that is not the installed one
+      ansible.builtin.debug:
+        msg: >-
+          Running kernel {{ wsl_kernel_running }}, but WSL
+          {{ wsl_installed }} ships {{ wsl_kernel_installed }}. Restart the
+          VM: `wsl --shutdown`, or `ansible-playbook
+          playbooks/maintenance.yml --tags wsl_shutdown`.
+      when: not wsl_kernel_current | bool
+
+    - name: Fail on a kernel that is not the installed one
+      ansible.builtin.fail:
+        msg: >-
+          The running kernel is not the one WSL {{ wsl_installed }} ships;
+          see the message above. wsl_kernel_check_strict is set.
+      when:
+        - not wsl_kernel_current | bool
+        - wsl_kernel_check_strict | bool

@@ -1,9 +1,21 @@
 ---
-- name: Install git and the forge CLIs
+- name: Install git, git-lfs and the forge CLIs
   become: true
   ansible.builtin.apt:
     name: "{{ git_packages }}"
     state: present
+
+# The global half of `git lfs install`, without a command that reports
+# changed on every run.  Not secret, so it runs in CI as well.
+- name: Register the git-lfs filters
+  community.general.git_config:
+    name: "{{ item.name }}"
+    scope: global
+    value: "{{ item.value }}"
+  loop: "{{ git_lfs_config }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: "'git-lfs' in git_packages"
 
 - name: Configure git identity
   community.general.git_config:

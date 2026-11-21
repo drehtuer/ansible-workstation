@@ -13,9 +13,10 @@ it.
 
 == What this repository is
 
-Ansible playbooks that provision a *personal WSL workstation* — Ubuntu 24.04 and
-26.04 — with the user's tools, dotfiles, shell, editors and language toolchains.
-An opt-in second part configures the Windows host through WSL interop.
+Ansible playbooks that provision a *personal WSL workstation* — Ubuntu 26.04,
+the default, and 24.04 — with the user's tools, shell, editors and
+language toolchains. An opt-in second part configures the Windows host
+through WSL interop.
 
 It is *not* server configuration management; that lives in a separate `ansible`
 repository. Do not add services, daemons, systemd units that listen on ports,
@@ -66,8 +67,9 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | The repository is *public on purpose* — it forces the no-plaintext rule
 | README, _This repository is public, on purpose_
 
-| No dotfile manager — plain Ansible modules
-| README, _Dotfiles_
+| No dotfiles role: dotfiles, `keychain` and SSH key storage belong to a
+  separate dotfiles repository. No dotfile manager here either
+| README, _Roadmap / Deferred_
 
 | No Molecule — `invoke converge` drives a container directly
 | README, _Roadmap / Deferred_
@@ -99,11 +101,42 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
   that origin by an apt preference
 | README, _Node.js_
 
+| Claude Code comes from Anthropic's apt repository, on a channel set by
+  `claude_channel` — never the `curl \| bash` installer, never npm
+| README, _Claude Code_
+
+| Firefox comes from Mozilla's apt repository, pinned by origin at 1000 —
+  never the archive's snap stub
+| README, _Firefox_
+
+| `ansible-core` stays on the newest line that still runs on 24.04's Python
+  3.12 — 2.21 today; 2.22 needs 3.13
+| `pyproject.toml`
+
 | `vi` and `vim` reach nvim through alternatives, never through symlinks
 | README, _neovim, and the vi/vim alternatives_
 
-| `docker` group membership is accepted on a single-user workstation
-| README, _Docker_
+| `docker` group membership is accepted on a single-user workstation; so are
+  `kvm` and `libvirt`
+| README, _Docker_ and _KVM_
+
+| `.wslconfig` belongs to the `wslconfig` role on the Windows side, amended
+  key by key
+| README, _The WSL VM: .wslconfig_
+
+| `wsl --shutdown` runs only from `playbooks/maintenance.yml`, on request,
+  from a detached Windows process after a delay
+| README, _Maintenance: shutdown, update and disk compaction_
+
+| No VS Code role: the WSL extension installs the server itself
+| README, _Roadmap / Deferred_
+
+| A newer WSL is installed on request (`--tags wsl_update`), never looked
+  up on GitHub
+| README, _Roadmap / Deferred_
+
+| Hyper-V switch configuration is out of scope
+| README, _Roadmap / Deferred_
 
 | `docker` and `fonts` are roles of their own, not additions to `base`
 | README, _What gets installed_
@@ -249,7 +282,8 @@ _Documentation_.
   group membership) and `fonts` (downloaded assets and a fontconfig rule) are
   the settled examples of concerns that earn their own role, and `nodejs` is
   a third: an apt source plus a version policy, which is more than the plain
-  package list `languages` is. A package that only needs installing belongs
+  package list `python` is. `claude` follows the same reasoning: an apt
+  source plus a release channel. A package that only needs installing belongs
   in the role that owns its purpose.
 * Do not introduce a new package manager, dotfile manager, or abstraction layer
   without asking first.
@@ -335,7 +369,8 @@ Privilege::
 Package placement::
 A package belongs to the role that owns its concern, not to `base` because it
 is convenient — multiplexers in `shell`, forge CLIs in `git`, the container
-tooling in `docker`. `base` is for what every workstation needs regardless of
+tooling in `docker`, `xxd` in `editor`, ping and the capture tools in
+`network`. `base` is for what every workstation needs regardless of
 what is installed on top.
 +
 Prefer the Ubuntu archive — `gh` and `glab` are in it, and so is most of what
@@ -344,7 +379,7 @@ version cannot do the job, add the upstream source, see
 _Third-party apt sources_.
 
 Third-party apt sources::
-Adding one is allowed, not exceptional — two are in use already. It does need
+Adding one is allowed, not exceptional — four are in use already. It does need
 a reason written down in the role's `defaults/main.yml`: what the archive
 offers, and why that is not enough. "Newer" is not a reason on its own;
 end-of-life, or missing a capability the tool exists for, is.
@@ -371,9 +406,10 @@ alternative rather than writing a symlink: the package manager stops fighting
 over the file and `update-alternatives --config` reverses it.
 
 Distribution support::
-Both Ubuntu 24.04 and 26.04 must work. When they differ, branch on
-`ansible_distribution_version` — never on a hardcoded codename in a URL without
-a variable behind it.
+Ubuntu 26.04 is the default target; 24.04 is still supported. Both must
+work. The first entry of `UBUNTU_TARGETS` in `tasks.py` is the default —
+keep 26.04 there. When they differ, branch on `ansible_distribution_version`
+— never on a hardcoded codename in a URL without a variable behind it.
 
 Booleans and quoting::
 `true`/`false` lowercase; quote file modes as strings (`"0644"`).
@@ -396,8 +432,20 @@ than inline.
 == Windows tasks
 
 * Everything Windows-related is gated behind `manage_windows` (default `false`)
-  and lives in `playbooks/windows.yml` / `roles/windows/`. It is never part of a
-  default `site.yml` run.
+  and lives in `playbooks/windows.yml` / `roles/windows/` /
+  `roles/wslconfig/`. It is never part of a default `site.yml` run.
+* VM-wide WSL settings go into `.wslconfig` through `roles/wslconfig`, never
+  into `/etc/wsl.conf`, which is per distro. A change there takes effect only
+  after `wsl --shutdown`; report it, never run it from a configuring role —
+  it kills the distro the playbook is running in.
+* `wsl --shutdown` belongs to `playbooks/maintenance.yml` alone. Its roles
+  carry the `never` tag, so they run only when named, and they hand the
+  shutdown to a detached Windows process that waits first, so the play can
+  finish. Anything that needs elevation there carries the `interactive`
+  tag, like Chocolatey.
+* `site.yml` may *read* WSL state through interop — the health checks call
+  `wsl.exe --version` — but must not change anything on the Windows side;
+  that is what `manage_windows` gates.
 * Prefer `winget` user-scope installs. Chocolatey needs elevation, which WSL
   interop cannot obtain silently — it raises an interactive UAC prompt. Anything
   Chocolatey-based carries the `interactive` tag, and the task name says so.

@@ -1,0 +1,53 @@
+---
+- name: Resolve the Windows user profile path
+  ansible.builtin.command:
+    argv:
+      - "{{ wslconfig_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - "[Console]::Out.Write($env:USERPROFILE)"
+  register: wslconfig_userprofile
+  changed_when: false
+
+- name: Translate the profile path into a WSL path
+  ansible.builtin.command:
+    argv:
+      - wslpath
+      - -u
+      - "{{ wslconfig_userprofile.stdout | trim }}"
+  register: wslconfig_userprofile_wsl
+  changed_when: false
+
+# ini_file amends the file key by key, so anything set by hand, or through
+# the WSL Settings app, survives.  Keys are matched case-sensitively, in the
+# spelling Microsoft documents.  `mode` is meaningless on NTFS and only
+# keeps the module from guessing.
+- name: Configure WSL networking
+  community.general.ini_file:
+    path: "{{ wslconfig_userprofile_wsl.stdout | trim }}/.wslconfig"
+    section: wsl2
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: true
+    mode: "0644"
+  loop:
+    - {option: networkingMode, value: "{{ wslconfig_networking_mode }}"}
+    - option: localhostForwarding
+      value: "{{ wslconfig_localhost_forwarding | lower }}"
+    - option: nestedVirtualization
+      value: "{{ wslconfig_nested_virtualization | lower }}"
+  loop_control:
+    label: "wsl2.{{ item.option }}"
+  notify: Report .wslconfig change
+
+- name: Configure WSL memory reclaim
+  community.general.ini_file:
+    path: "{{ wslconfig_userprofile_wsl.stdout | trim }}/.wslconfig"
+    section: experimental
+    option: autoMemoryReclaim
+    value: "{{ wslconfig_memory_reclaim }}"
+    no_extra_spaces: true
+    mode: "0644"
+  notify: Report .wslconfig change
+  tags: [memory_reclaim]

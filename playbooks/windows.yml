@@ -15,5 +15,7 @@
       tags: [always]
 
   roles:
+    - role: wslconfig
+      tags: [wslconfig]
     - role: windows
       tags: [windows]

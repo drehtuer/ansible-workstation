@@ -1,0 +1,30 @@
+---
+# Requested explicitly every time, so it is a change every time.
+- name: Schedule wsl --update (may raise an interactive UAC prompt)
+  vars:
+    wsl_update_args: >-
+      {{ (['--pre-release'] if wsl_update_pre_release | bool else [])
+         + (['--web-download'] if wsl_update_web_download | bool else [])
+         | join(' ') }}
+  ansible.builtin.command:
+    argv:
+      - "{{ wsl_update_powershell }}"
+      - -NoProfile
+      - -NonInteractive
+      - -Command
+      - >-
+        Start-Process -WindowStyle Hidden -FilePath powershell.exe
+        -ArgumentList '-NoProfile','-NonInteractive','-Command',
+        'Start-Sleep -Seconds {{ wsl_update_delay | int }};
+        wsl.exe --update {{ wsl_update_args }}
+        *> (Join-Path $env:TEMP wsl_update.log);
+        wsl.exe --shutdown'
+  changed_when: true
+  tags: [interactive]
+
+- name: Announce the update
+  ansible.builtin.debug:
+    msg: >-
+      WSL updates in {{ wsl_update_delay }} seconds and then shuts down,
+      ending this session. The result is in %TEMP%\wsl_update.log; open a
+      new terminal afterwards.
