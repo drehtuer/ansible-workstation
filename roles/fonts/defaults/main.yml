@@ -22,9 +22,9 @@ fonts_nerd_fonts:
     sentinel: FiraCodeNerdFont-Regular.ttf
 
 # Per-user locations: installing fonts needs no root.
-fonts_dir: "{{ ansible_env.HOME }}/.local/share/fonts"
-fonts_cache_dir: "{{ ansible_env.HOME }}/.cache/nerd-fonts"
-fonts_fontconfig_dir: "{{ ansible_env.HOME }}/.config/fontconfig/conf.d"
+fonts_dir: "{{ ansible_facts.env.HOME }}/.local/share/fonts"
+fonts_cache_dir: "{{ ansible_facts.env.HOME }}/.cache/nerd-fonts"
+fonts_fontconfig_dir: "{{ ansible_facts.env.HOME }}/.config/fontconfig/conf.d"
 
 # Fira Code's ligatures are drawn by the OpenType `calt` feature.  Terminals
 # decide for themselves, but everything that renders through fontconfig

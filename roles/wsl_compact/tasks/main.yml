@@ -15,7 +15,7 @@
     - name: Assert that the distro is known
       ansible.builtin.assert:
         that:
-          - ansible_env.WSL_DISTRO_NAME is defined
+          - ansible_facts.env.WSL_DISTRO_NAME is defined
         fail_msg: >-
           WSL_DISTRO_NAME is not set, so the distro's disk cannot be found.
           Run the playbook from a WSL shell, without sudo.
@@ -33,7 +33,7 @@
           - >-
             $d = Get-ChildItem '{{ wsl_compact_lxss_key }}'
             | Where-Object { $_.GetValue('DistributionName') -eq
-            '{{ ansible_env.WSL_DISTRO_NAME }}' };
+            '{{ ansible_facts.env.WSL_DISTRO_NAME }}' };
             [Console]::Out.Write(
             ($d.GetValue('BasePath') -replace '^\\\\\?\\', '')
             + '\ext4.vhdx')
@@ -62,7 +62,7 @@
 
     - name: Write the compaction script
       vars:
-        wsl_compact_distro: "{{ ansible_env.WSL_DISTRO_NAME }}"
+        wsl_compact_distro: "{{ ansible_facts.env.WSL_DISTRO_NAME }}"
         wsl_compact_vhd: "{{ wsl_compact_vhd_path.stdout | trim }}"
       ansible.builtin.template:
         src: wsl_compact.ps1.j2

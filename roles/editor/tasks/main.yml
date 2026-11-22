@@ -28,7 +28,7 @@
         name: neovim-ppa
         types: [deb]
         uris: "{{ editor_neovim_ppa_uri }}"
-        suites: "{{ ansible_distribution_release }}"
+        suites: "{{ ansible_facts.distribution_release }}"
         components: [main]
         signed_by: "{{ editor_neovim_keyring }}"
         state: present

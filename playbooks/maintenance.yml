@@ -25,7 +25,7 @@
     - name: Assert that this runs inside WSL
       ansible.builtin.assert:
         that:
-          - ansible_env.WSL_DISTRO_NAME is defined
+          - ansible_facts.env.WSL_DISTRO_NAME is defined
             or '/proc/sys/fs/binfmt_misc/WSLInterop' is exists
         fail_msg: These tasks maintain the WSL VM and only work inside WSL.
       tags: [always]

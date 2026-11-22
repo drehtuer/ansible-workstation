@@ -28,7 +28,7 @@ docker_users:
 # Set this to the uplink's MTU to fix it:
 #
 #   docker_daemon_mtu: 1492
-#   docker_daemon_mtu: "{{ ansible_default_ipv4.mtu }}"   # follow the uplink
+#   docker_daemon_mtu: "{{ ansible_facts.default_ipv4.mtu }}"  # the uplink's
 #
 # 0 leaves /etc/docker/daemon.json alone entirely.  Applying a change
 # restarts the daemon, which stops running containers.

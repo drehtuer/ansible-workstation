@@ -2,15 +2,15 @@
 - name: Assert that chezmoi publishes a package for this architecture
   ansible.builtin.assert:
     that:
-      - ansible_architecture in chezmoi_architectures
+      - ansible_facts.architecture in chezmoi_architectures
     fail_msg: >-
-      No chezmoi .deb is pinned for {{ ansible_architecture }}; supported:
+      No chezmoi .deb is pinned for {{ ansible_facts.architecture }}; supported:
       {{ chezmoi_architectures | list | join(', ') }}.
     quiet: true
 
 - name: Install chezmoi
   vars:
-    chezmoi_arch: "{{ chezmoi_architectures[ansible_architecture] }}"
+    chezmoi_arch: "{{ chezmoi_architectures[ansible_facts.architecture] }}"
     chezmoi_deb: >-
       chezmoi_{{ chezmoi_version }}_linux_{{ chezmoi_arch }}.deb
   become: true

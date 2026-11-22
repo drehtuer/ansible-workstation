@@ -5,10 +5,10 @@
 - name: Assert that this distro runs on WSL 2
   ansible.builtin.assert:
     that:
-      - "'microsoft-standard-WSL2' in ansible_kernel"
+      - "'microsoft-standard-WSL2' in ansible_facts.kernel"
     fail_msg: >-
-      This distro runs on WSL 1 (kernel {{ ansible_kernel }}). Convert it
-      from Windows with `wsl --set-version {{ ansible_env.WSL_DISTRO_NAME
+      This distro runs on WSL 1 (kernel {{ ansible_facts.kernel }}). Convert it
+      from Windows with `wsl --set-version {{ ansible_facts.env.WSL_DISTRO_NAME
       | default('<distro>') }} 2`.
     quiet: true
 
@@ -30,7 +30,7 @@
     wsl_lines: "{{ wsl_version_output.stdout_lines | map('trim') | list }}"
     wsl_installed: "{{ wsl_lines[0].split()[-1] }}"
     wsl_kernel_installed: "{{ wsl_lines[1].split()[-1].split('-')[0] }}"
-    wsl_kernel_running: "{{ ansible_kernel.split('-')[0] }}"
+    wsl_kernel_running: "{{ ansible_facts.kernel.split('-')[0] }}"
   block:
     - name: Record whether the kernel is current
       ansible.builtin.set_fact:
