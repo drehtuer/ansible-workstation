@@ -15,6 +15,7 @@ dev = [
     "yamllint>=1.38",
     "ruff>=0.17",
     "invoke>=3.0",
+    "pre-commit>=4.3",
 ]
 
 [tool.uv]

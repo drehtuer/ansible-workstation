@@ -8,21 +8,36 @@ repos:
         language: system
         pass_filenames: true
 
+      # ruff and yamllint run from the project's .venv, so the hooks use the
+      # versions locked in uv.lock -- the same ones `invoke lint` and CI use.
+      # A hook repository would pin a second copy that drifts from the first.
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+
+      - id: yamllint
+        name: yamllint
+        entry: uv run yamllint
+        language: system
+        types: [yaml]
+
+  # Pinned by tag; Renovate's pre-commit manager raises it.  The committed
+  # apt signing keys are upstream bytes, kept as served -- a keyserver's
+  # armor header can end in a space -- so the fixers leave them alone.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: check-merge-conflict
       - id: end-of-file-fixer
+        exclude: ^roles/[^/]+/files/.+\.asc$
       - id: trailing-whitespace
+        exclude: ^roles/[^/]+/files/.+\.asc$
       - id: detect-private-key
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.6
-    hooks:
-      - id: ruff
-      - id: ruff-format
-
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
-    hooks:
-      - id: yamllint
