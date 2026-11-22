@@ -7,6 +7,7 @@ run byte-identical commands.  Invoke with ``uv run invoke <task>``.
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import socket
 import sys
@@ -115,14 +116,50 @@ def fmt(c: Context) -> None:
     c.run("ruff format .", pty=True)
 
 
+def tracked(c: Context, *patterns: str) -> list[str]:
+    """Return the files git tracks, optionally narrowed by pathspecs.
+
+    Linting only tracked files keeps ``.venv``, ``node_modules`` and build
+    output out of every check without a separate exclude list per tool.
+    """
+    out = c.run(
+        shlex.join(["git", "ls-files", "-z", "--", *patterns]),
+        hide=True,
+    ).stdout
+    return [name for name in out.split("\0") if name]
+
+
+@task
+def leaks(c: Context) -> None:
+    """Scan the whole git history for committed secrets with gitleaks.
+
+    gitleaks is not on PyPI, so it is the one lint tool outside uv.lock:
+    the devcontainer and CI install it from the Ubuntu archive.  Findings
+    are redacted, so a real secret is not printed a second time.
+    """
+    if shutil.which("gitleaks") is None:
+        raise Exit(
+            "gitleaks is required to scan for secrets "
+            "(`sudo apt install gitleaks`; preinstalled in the devcontainer)",
+            code=2,
+        )
+    c.run("gitleaks detect --redact --no-banner --source .", pty=True)
+
+
 @task
 def lint(c: Context) -> None:
-    """Check the lock files, then lint YAML, Ansible and Python sources."""
+    """Check the lock files and secrets, then lint every kind of source."""
     lock_check(c)
+    leaks(c)
     c.run("yamllint .", pty=True)
     c.run("ansible-lint", pty=True)
     c.run("ruff check .", pty=True)
     c.run("ruff format --check .", pty=True)
+    c.run(shlex.join(["shellcheck", *tracked(c, "*.sh")]), pty=True)
+    # actionlint also runs shellcheck over every `run:` block.
+    c.run("actionlint", pty=True)
+    c.run("zizmor --offline .", pty=True)
+    c.run(shlex.join(["ec", *tracked(c)]), pty=True)
 
 
 @task

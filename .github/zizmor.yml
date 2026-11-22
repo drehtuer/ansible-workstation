@@ -1,0 +1,8 @@
+---
+# zizmor audits the workflows; `invoke lint` runs it.  See README, "CI".
+rules:
+  # Every package a workflow installs outside a lock file is pinned all the
+  # same: the gems to an exact version that Renovate raises, gitleaks to
+  # the Ubuntu archive.  The audit cannot see either, so it is off.
+  adhoc-packages:
+    disable: true
