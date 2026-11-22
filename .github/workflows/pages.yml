@@ -37,7 +37,7 @@ jobs:
       # checks out its tag, and the site would then publish that tag's
       # content as the main version.  fetch-depth 0 brings the tags along,
       # which is where the older versions come from.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
