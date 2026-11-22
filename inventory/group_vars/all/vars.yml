@@ -1,17 +1,15 @@
 ---
 # Repository-wide variables.
 #
-# Anything user-identifying references its vault_* counterpart in vault.yml, so
-# that `grep -r vault_ inventory/` is a complete list of what is secret.
-git_user_name: "{{ vault_git_user_name }}"
-git_user_email: "{{ vault_git_user_email }}"
-git_signing_key: "{{ vault_git_signing_key | default('') }}"
+# Nothing personal lives here or anywhere else in this repository: it is a
+# public blueprint, and git identity, signing keys and every other personal
+# setting belong to the dotfiles repository that chezmoi applies.
 
-# The login account of this machine.  It differs per machine and it is
-# user-identifying, so the value lives in that machine's own encrypted
-# host_vars file -- see README, "Values that differ per machine".  Empty when
-# there is none; the roles that need it say so rather than guessing.
-workstation_user: "{{ vault_workstation_user | default('') }}"
+# The account the docker and kvm roles add to their groups: by default the
+# one the playbook runs as, which is the login account -- the playbook runs
+# unprivileged and uses sudo per task.  Override with
+# -e workstation_user=<account>.
+workstation_user: "{{ ansible_user_id }}"
 
 # Windows-side configuration is opt-in and never part of a default run.
 manage_windows: false

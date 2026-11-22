@@ -53,7 +53,6 @@
   loop_control:
     label: "{{ item.dest }}"
   changed_when: true
-  tags: [secrets]
 
 - name: Install fonts for the current Windows user
   ansible.builtin.include_tasks: fonts.yml

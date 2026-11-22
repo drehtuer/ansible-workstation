@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 import shlex
 import shutil
-import socket
 import sys
 from pathlib import Path
 
@@ -25,10 +24,6 @@ PLAYBOOKS = [
 # `--ubuntu` uses it.
 UBUNTU_TARGETS = ["26.04", "24.04"]
 
-VAULT_PASSWORD_FILE = Path.home() / ".config" / "ansible" / "vault_pass"
-VAULT_FILE = ROOT / "inventory" / "group_vars" / "all" / "vault.yml"
-HOST_VARS = ROOT / "inventory" / "host_vars"
-
 # requirements.txt is this command's output, never edited by hand.
 EXPORT = "uv export --no-dev --no-hashes --format requirements-txt"
 
@@ -39,34 +34,9 @@ CHEZMOI_RELEASES = "https://github.com/twpayne/chezmoi/releases/download"
 FONTS_DEFAULTS = ROOT / "roles" / "fonts" / "defaults" / "main.yml"
 FONTS_RELEASES = "https://github.com/ryanoasis/nerd-fonts/releases/download"
 
-HOST_HELP = (
-    "Work on this machine's own vault under inventory/host_vars/, "
-    "instead of the one shared by every machine."
-)
-
 ANTORA_PLAYBOOK = "antora-playbook.yml"
 NODE_MODULES = ROOT / "node_modules"
 SITE_DIR = ROOT / "build" / "site"
-
-
-def vault_args() -> str:
-    """Return the vault flag, but only when a password file actually exists.
-
-    An absent password file is silently ignored so that lint, syntax checks and
-    CI work on a machine that holds no secrets.  The password itself is never
-    read here -- only the path is handed to ansible.
-    """
-    return (
-        f"--vault-password-file {VAULT_PASSWORD_FILE}"
-        if VAULT_PASSWORD_FILE.is_file()
-        else ""
-    )
-
-
-def ansible(cmd: str) -> str:
-    """Prefix an ansible command with the vault flag, when one applies."""
-    args = vault_args()
-    return f"{cmd} {args}" if args else cmd
 
 
 @task
@@ -166,7 +136,7 @@ def lint(c: Context) -> None:
 def syntax(c: Context) -> None:
     """Parse every playbook without executing it."""
     for playbook in PLAYBOOKS:
-        c.run(ansible(f"ansible-playbook {playbook} --syntax-check"), pty=True)
+        c.run(f"ansible-playbook {playbook} --syntax-check", pty=True)
 
 
 @task(help={"tags": "Comma separated list of tags to limit the run to."})
@@ -174,19 +144,22 @@ def check(c: Context, tags: str = "") -> None:
     """Dry-run the site playbook against this machine."""
     limit = f" --tags {tags}" if tags else ""
     c.run(
-        ansible(f"ansible-playbook playbooks/site.yml --check --diff{limit}"),
+        f"ansible-playbook playbooks/site.yml --check --diff{limit}",
         pty=True,
     )
 
 
 @task(help={"tags": "Comma separated list of tags to limit the run to."})
 def apply(c: Context, tags: str = "") -> None:
-    """Provision this machine for real."""
+    """Provision this machine for real.
+
+    Run it as the login account, not with sudo: the playbook asks for the
+    sudo password and uses it per task, and the docker and kvm roles add
+    the account that runs it to their groups.
+    """
     limit = f" --tags {tags}" if tags else ""
     c.run(
-        ansible(
-            f"ansible-playbook playbooks/site.yml --ask-become-pass{limit}"
-        ),
+        f"ansible-playbook playbooks/site.yml --ask-become-pass{limit}",
         pty=True,
     )
 
@@ -200,9 +173,8 @@ def apply(c: Context, tags: str = "") -> None:
 def converge(c: Context, ubuntu: str = UBUNTU_TARGETS[0]) -> None:
     """Converge twice in a throwaway container; the second run must be a no-op.
 
-    No vault password is used.  Secret-consuming tasks carry the ``secrets``
-    tag and are skipped; ``tests/vars.ci.yml`` supplies obviously-fake values
-    so the same code paths still execute.
+    The container runs the playbook as root, so root is the account the
+    docker and kvm roles add to their groups there.
     """
     if ubuntu not in UBUNTU_TARGETS:
         raise Exit(
@@ -245,69 +217,6 @@ def site(c: Context, fetch: bool = False) -> None:
         pty=True,
     )
     print(f"site written to {SITE_DIR}", file=sys.stderr)
-
-
-def vault_file(host: bool) -> tuple[Path, Path]:
-    """Return the vault to work on and the example it is created from.
-
-    With ``host``, that is this machine's own vault under
-    ``inventory/host_vars/<hostname>/`` -- the same name the inventory
-    reports.  Without it, the vault shared by every machine.
-    """
-    if not host:
-        return VAULT_FILE, VAULT_FILE.with_suffix(".yml.example")
-    name = socket.gethostname().split(".", 1)[0]
-    return HOST_VARS / name / "vault.yml", HOST_VARS / "vault.yml.example"
-
-
-def require_password_file() -> Path:
-    """Return the vault password file, explaining how to create it if absent."""
-    if VAULT_PASSWORD_FILE.is_file():
-        return VAULT_PASSWORD_FILE
-    raise Exit(
-        f"password file {VAULT_PASSWORD_FILE} is missing -- create it with\n"
-        f"  mkdir -p {VAULT_PASSWORD_FILE.parent}\n"
-        f"  install -m 0600 /dev/null {VAULT_PASSWORD_FILE}\n"
-        f"  $EDITOR {VAULT_PASSWORD_FILE}\n"
-        "Do not use `echo`; the password would land in your shell history.",
-        code=2,
-    )
-
-
-@task(help={"host": HOST_HELP})
-def vault_edit(c: Context, host: bool = False) -> None:
-    """Edit a vault in place; it is never decrypted to disk."""
-    password_file = require_password_file()
-    target, _ = vault_file(host)
-    if not target.exists():
-        raise Exit(
-            f"{target} does not exist -- run `invoke vault-init"
-            f"{' --host' if host else ''}` first",
-            code=2,
-        )
-    c.run(
-        f"ansible-vault edit --vault-password-file {password_file} {target}",
-        pty=True,
-    )
-
-
-@task(help={"host": HOST_HELP})
-def vault_init(c: Context, host: bool = False) -> None:
-    """Create an encrypted vault from its example template.
-
-    The password file must already exist and must live outside this
-    repository.  One password covers every vault here, shared or per-host.
-    """
-    password_file = require_password_file()
-    target, example = vault_file(host)
-    if target.exists():
-        raise Exit(f"{target} already exists", code=2)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(example.read_text())
-    c.run(
-        f"ansible-vault encrypt --vault-password-file {password_file} {target}",
-        pty=True,
-    )
 
 
 @task(name="all", pre=[lint, syntax, site])

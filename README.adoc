@@ -9,8 +9,12 @@
 :pages-url: https://drehtuer.github.io/ansible-workstation
 
 Ansible playbooks that turn a freshly installed WSL distribution into a
-ready-to-use development workstation: the user's tools and settings,
-reproducibly and idempotently.
+ready-to-use development workstation, reproducibly and idempotently.
+
+It is a *blueprint*: the tools, sources and system settings every machine
+gets, and nothing personal. Git identity, keys, shell profiles and every
+other personal setting live in a separate dotfiles repository, which chezmoi
+applies once the playbook has run — see <<public>>.
 
 Target distributions: *Ubuntu 26.04 LTS*, the default, and *Ubuntu 24.04
 LTS*, still supported.
@@ -37,7 +41,7 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
 | Area | State
 
 | Task runner
-| `tasks.py` (Invoke), 15 tasks. The single entry point for every check.
+| `tasks.py` (Invoke), 13 tasks. The single entry point for every check.
 
 | Python environment
 | `pyproject.toml` with `ansible-core` + a `dev` group (`ansible-lint`,
@@ -49,8 +53,8 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   (project virtualenv + Galaxy content).
 
 | Inventory
-| One host: this machine, under its own name (`inventory/hosts.py`). A vault
-  shared by every machine, plus one per machine under `host_vars/`.
+| One host: this machine, under its own name (`inventory/hosts.py`). No
+  vault and no per-machine files: nothing here is personal.
 
 | Playbooks
 | `playbooks/site.yml` (Linux), `playbooks/windows.yml` (opt-in) and
@@ -63,9 +67,9 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   `wsl_update` and `wsl_shutdown` on request only. All but `windows`, whose
   inputs are still empty, install the real toolset — see <<toolset>>.
 
-| Secret handling
-| Vault indirection, `secrets` tag, `no_log`, pre-commit guard, `.gitattributes`
-  textconv, `.gitignore` patterns.
+| Personal data
+| None. Personal settings live in the dotfiles repository; `gitleaks` and
+  `detect-private-key` guard against anything slipping in, see <<public>>.
 
 | Default target
 | Ubuntu 26.04. `invoke converge` uses it when `--ubuntu` is not given; 24.04
@@ -120,14 +124,9 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   priority 600. A second pass reports `changed=0`. Repointing `nodejs_major`
   at 22 replaces the runtime with 22.23.2, and moving it back restores
   24.21.0 — then goes quiet again.
-* The vault path, end to end in a container: `invoke vault-init --host`
-  writes an encrypted vault for the machine the inventory named,
-  `invoke vault-edit --host` edits it in place, and a run with the password
-  file decrypts it and adds that account to the `docker` group. A machine
-  with no vault of its own fails with a message naming the host and not the
-  account; a vault naming an account that does not exist fails *without*
-  creating it; `--skip-tags secrets` skips all of it; and the pre-commit
-  guard rejects the same file left in plaintext.
+* Group membership, in a container: the account that runs the playbook —
+  root, there — joins `docker`, `kvm` and `libvirt`, and a second pass
+  reports `changed=0`.
 * Markdown reaches the site: a `.md` page inside the component and a `.md`
   file lent from the repository root both render, and a missing `kramdoc`
   fails the build with a message naming the gem.
@@ -147,14 +146,14 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   is the PPA build rather than the archive's, `docker buildx` and `docker
   compose` answer, and 18 Fira Code Nerd Font faces are registered with
   fontconfig reporting `calt on` for them.
-* Python syntax, shell syntax, YAML/JSON parsing, and the vault guard's own
-  behaviour.
+* Python syntax, shell syntax and YAML/JSON parsing.
 
 .What is not verified
-The playbook has never run on a *real* WSL machine — only in containers, as
-root, with the `secrets` tag skipped. Still untested:
+The playbook has never run to the end on a *real* WSL machine — only in
+containers, as root. Still untested:
 
-* `become` against a real sudo prompt
+* `become` against a real sudo prompt, and group membership for an account
+  that is not root
 * everything in `roles/windows`, `roles/wslconfig`, `roles/wsl_compact`,
   `roles/wsl_update` and `roles/wsl_shutdown`, which need a Windows host and
   cannot run in CI at all. The distro's VHD path lookup was run by hand on a
@@ -173,7 +172,6 @@ root, with the `secrets` tag skipped. Still untested:
 
 Ordered roughly by dependency.
 
-. *Create the vault.* `invoke vault-init`, then move the git identity into it.
 . *Windows side.* `roles/windows` has working task shapes but empty inputs —
   populate `windows_files`, `windows_fonts`, `windows_winget_packages`. The
   Fira Code Nerd Font belongs in `windows_fonts`: it is installed inside WSL
@@ -186,8 +184,14 @@ Ordered roughly by dependency.
 
 === Deferred / decided against
 
+* *Ansible Vault.* This repository once held a shared vault and one per
+  machine: git identity, signing key, and each machine's login account.
+  Removed: a blueprint holds nothing personal, the dotfiles repository
+  already keeps personal settings encrypted, and a vault password made a
+  fresh machine's first run wait on secrets it did not need. The login
+  account is now the one that runs the playbook, see <<public>>.
 * *Separate vault passwords per profile.* Designed, then dropped — the fork
-  model makes it unnecessary. See <<separation>>.
+  model made it unnecessary, and the vault itself is gone since.
 * *The `dotfiles` role.* Removed while it still held nothing but empty
   lists. Dotfiles — `keychain` and where SSH keys are kept included — belong
   to a separate dotfiles repository that syncs them, not to this one.
@@ -199,10 +203,10 @@ Ordered roughly by dependency.
 * *A dotfile manager run by this repository* (stow, chezmoi, yadm). Should
   dotfiles ever come back here, plain `ansible.builtin.template` and
   `ansible.builtin.copy` already offer everything such a tool adds —
-  templating, per-host variation, idempotent placement, secret injection
-  from the vault — without a second templating syntax and a second source of
-  truth. Installing chezmoi for the *separate* dotfiles repository is a
-  different thing, and is done, see <<chezmoi>>.
+  templating, per-host variation, idempotent placement — without a second
+  templating syntax and a second source of truth. Installing chezmoi for the
+  *separate* dotfiles repository is a different thing, and is done, see
+  <<chezmoi>>.
 * *Molecule.* The converge task drives a throwaway container directly; Molecule
   would add a heavy dependency for the same result.
 * *A Makefile.* Replaced by Invoke, see <<testing>>.
@@ -232,10 +236,11 @@ Ordered roughly by dependency.
 | The Ansible toolchain lives in a project-local Python virtual environment.
   Nothing is installed into the system Python.
 
-| Secret-safe
-| Every user-specific credential, private URL, account name or token lives in an
-  Ansible Vault file. The vault password never enters the repository, the shell
-  history, the logs, or CI output.
+| Impersonal
+| Nothing user-specific lives here — no credential, private URL, account
+  name or token, not even encrypted. A fresh machine needs no secret to run
+  the playbook; personal settings arrive afterwards, from the dotfiles
+  repository.
 
 | Locally verifiable
 | Every check that CI runs can be run identically on the developer's machine
@@ -404,14 +409,8 @@ throwaway converge tests only.
 ├── ansible.cfg
 ├── inventory/
 │   ├── hosts.py               <11>
-│   ├── group_vars/all/
-│   │   ├── vars.yml
-│   │   ├── vault.yml          <12>
-│   │   └── vault.yml.example
-│   └── host_vars/
-│       ├── vault.yml.example
-│       └── <hostname>/
-│           └── vault.yml      <12>
+│   └── group_vars/all/
+│       └── vars.yml           <12>
 ├── playbooks/
 │   ├── site.yml               <13>
 │   ├── windows.yml            <14>
@@ -439,8 +438,7 @@ throwaway converge tests only.
 │   └── windows/               <17>
 ├── scripts/
 │   ├── install-uv.sh          <18>
-│   ├── bootstrap.sh
-│   └── check_vault_encrypted.py   <19>
+│   └── bootstrap.sh           <19>
 ├── tests/                     <20>
 └── docs/                      <21>
     ├── antora.yml
@@ -465,26 +463,39 @@ throwaway converge tests only.
 <10> Pins Antora. It is a documentation dependency; nothing the playbooks
      install needs Node.
 <11> Reports one host — this machine, by name — with `connection: local`.
-<12> Encrypted. Created from the example by `invoke vault-init`.
+<12> Repository-wide choices: which roles run, which account joins groups.
 <13> Entry point for the Linux/WSL side.
 <14> Windows-side configuration, opt-in.
 <15> `/etc/wsl.conf`, interop, systemd, Windows path handling.
 <16> Firefox from Mozilla's apt repository, not the snap, see <<firefox>>.
 <17> Windows tasks driven through WSL interop.
 <18> Standalone `uv` installer, shared by host and devcontainer.
-<19> Pre-commit guard against plaintext vaults and stray password files.
-<20> Converge fixtures and dummy vars for CI.
+<19> Project setup: `uv`, the virtualenv and Galaxy content; ends with the
+     next steps.
+<20> The converge script CI runs.
 <21> The Antora component: one module, `ROOT`, unversioned.
 
 == Quick start
 
-[source,bash]
+[source,bash,subs="attributes+"]
 ----
-git clone <this-repo> ~/git/ansible-workstation
+git clone {repo-url}.git ~/git/ansible-workstation
 cd ~/git/ansible-workstation
 ./scripts/bootstrap.sh
-uv run invoke apply
+exec bash -l                 # fresh distro only: puts ~/.local/bin on PATH
+uv run invoke apply          # asks for your sudo password
+chezmoi init --apply <your-dotfiles-repo>
 ----
+
+Run it as your login account, not with `sudo`: the playbook asks for the sudo
+password and uses it only for the tasks that need it, and the `docker` and
+`kvm` roles add the account that runs it to their groups. No vault, no
+password file, nothing to set up first.
+
+`exec bash -l` is needed once, on a distro where `~/.local/bin` did not exist
+when the shell started: `uv` lands there, and Ubuntu's `~/.profile` puts the
+directory on `PATH` only if it already existed at login. `bootstrap.sh`
+says so when it applies.
 
 Useful variations:
 
@@ -509,86 +520,30 @@ Variables are layered, lowest to highest precedence:
 
 . `roles/<role>/defaults/main.yml` — sane defaults, safe to override
 . `inventory/group_vars/all/vars.yml` — repository-wide choices
-. `inventory/host_vars/<hostname>/*.yml` — this machine only
 . `--extra-vars` — one-off runs
 
-Secrets never appear directly in a role. A role references a plain variable, the
-plain variable references the vault:
-
-.inventory/group_vars/all/vars.yml
-[source,yaml]
-----
-git_user_name: "{{ vault_git_user_name }}"
-git_user_email: "{{ vault_git_user_email }}"
-----
-
-.inventory/group_vars/all/vault.yml (encrypted)
-[source,yaml]
-----
-vault_git_user_name: "…"
-vault_git_user_email: "…"
-----
-
-This keeps `grep -r vault_ inventory/` a complete inventory of what is secret,
-and lets the playbook fail loudly when the vault is missing instead of silently
-templating an empty string.
+`inventory/hosts.py` reports the machine under its real name rather than as
+`localhost`, so a fork that does need per-machine values can add
+`inventory/host_vars/<hostname>/` and have it apply to that machine alone.
+Upstream has none.
 
 [#per-machine]
-=== Values that differ per machine
+=== The account that joins groups
 
-Ansible resolves `host_vars/` by *inventory* hostname, so a static inventory
-would have to write that name down — and the only name true on every machine
-is `localhost`, at which point every workstation sharing this repository
-reads the same file. `inventory/hosts.py` reports the machine's real name
-instead:
-
-[source,bash]
-----
-$ ansible-inventory --list | jq '.ungrouped.hosts'
-[ "thinkpad" ]
-----
-
-The names are discovered, never committed: nothing in this repository says
-what your machines are called until you add a directory for one.
-
-The login account is the first value that differs per machine. It is also
-user-identifying, so it lives in that machine's *own* vault:
-
-[source]
-----
-inventory/host_vars/
-├── vault.yml.example       <1>
-├── thinkpad/
-│   └── vault.yml           <2>
-└── desktop/
-    └── vault.yml
-----
-<1> The template `invoke vault-init --host` copies.
-<2> Encrypted, with the same password as every other vault here.
-
-.inventory/host_vars/<hostname>/vault.yml (encrypted)
-[source,yaml]
-----
-vault_workstation_user: "some-account"
-----
+`docker` and `kvm` add an account to their groups. It is `workstation_user`,
+which defaults to the account the playbook runs as:
 
 .inventory/group_vars/all/vars.yml
 [source,yaml]
 ----
-workstation_user: "{{ vault_workstation_user | default('') }}"
+workstation_user: "{{ ansible_user_id }}"
 ----
 
-[source,bash]
-----
-uv run invoke vault-init --host    # create this machine's vault
-uv run invoke vault-edit --host    # edit it in place
-----
-
-A machine without one gets an empty string, and the roles that need the
-account say so rather than guessing: the `docker` role asserts before it
-touches group membership, naming the host and pointing at the command that
-fixes it. Deriving the name from `ansible_user_id` instead would quietly
-provision whichever account happened to run the playbook.
+The playbook runs unprivileged and uses sudo only per task, so that is the
+login account. Override it for one run with
+`-e workstation_user=<account>`. The roles check that the account exists
+first and fail if it does not: `ansible.builtin.user` would otherwise create
+it.
 
 [#toolset]
 == What gets installed
@@ -619,7 +574,8 @@ visible from where it sits.
 
 | `git`
 | `git` and `git-lfs`, the forge CLIs `gh` (from GitHub's apt repository)
-  and `glab`, and the global git configuration, including the LFS filters
+  and `glab`, and system-wide git defaults in `/etc/gitconfig`, including
+  the LFS filters — `~/.gitconfig` is left to the dotfiles repository
 
 | `editor`
 | `neovim` from the upstream PPA, the `vi` / `vim` alternatives, `xxd`, and
@@ -849,9 +805,8 @@ The role installs the program, nothing more. Logging in and
 `docker-compose-v2` as its CLI plugins — `docker build` and `docker compose`
 therefore work without Docker's own apt repository.
 
-The account added to the group is `workstation_user`, which comes from the
-vault keyed by hostname — see <<per-machine>>. A host that is not in that map
-fails the run with a message naming it, instead of adding a guessed account.
+The account added to the group is `workstation_user`, the one that runs the
+playbook unless overridden — see <<per-machine>>.
 
 [CAUTION]
 ====
@@ -1030,8 +985,8 @@ Work and private configuration are separated by *forking the repository*, not by
 branching or by profiles inside one checkout.
 
 This public repository is the upstream. The work repository is a fork living on
-the internal host, under the work account, with its own vault and its own
-password. Improvements flow one way — upstream to fork — by pulling. Work
+the internal host, under the work account. If it needs secrets, it adds its
+own vault there. Improvements flow one way — upstream to fork — by pulling. Work
 specific values never travel back, and nothing internal is ever pushed here.
 
 Consequences:
@@ -1041,94 +996,36 @@ Consequences:
   not present in this repository
 * the direction of flow is enforced by the trust boundary: this repository is
   public, so anything internal is disqualified from it by definition
-* the vault stays simple: one file, one password, one identity per repository
 
-[NOTE]
-====
-An earlier design used two vault identities with separate passwords inside one
-repository. It was dropped: the fork model already provides stronger separation,
-and a single vault is materially simpler to operate.
-
-If a future need arises for two profiles in *one* checkout, the mechanism is
-`--vault-id <name>@<path>` with per-profile `group_vars` — but do not add it
-speculatively.
-====
-
-[#vault]
-== Secrets and Ansible Vault
-
-=== This repository is public, on purpose
+[#public]
+== Nothing personal: this repository is public, on purpose
 
 {repo-url}[This repository] is public, and that is a deliberate security
 choice rather than an oversight.
 
-A private repository invites sloppiness: "it is private anyway" is how plaintext
-credentials end up committed. Public makes the rule unambiguous — *nothing
-sensitive is ever stored here in plaintext, full stop* — and any slip is
-immediately a real incident rather than a latent one. GitHub is treated as
-untrusted infrastructure.
+A private repository invites sloppiness: "it is private anyway" is how
+plaintext credentials end up committed. Public makes the rule unambiguous —
+*nothing personal or sensitive is ever stored here*, not even encrypted —
+and any slip is immediately a real incident rather than a latent one. GitHub
+is treated as untrusted infrastructure.
 
 What follows from that:
 
-* the vault password never leaves the local machine; it lives at
-  `~/.config/ansible/vault_pass` and is never committed, never pushed, never put
-  into CI
-* `vault.yml` is committed *encrypted* and nothing else
-* a leak of this repository must be uninteresting to an attacker: they get
-  ciphertext and a list of variable names
-* even inside the vault, prefer references over material — a key path rather
-  than a private key, an account identifier rather than a token, wherever the
-  playbook can look the real value up locally
+* user-identifying data stays out: e-mail addresses, account and machine
+  names, tokens, SSH and signing keys, internal URLs, license keys
+* personal settings belong to the dotfiles repository, which chezmoi applies
+  and which keeps them encrypted there. That includes `~/.gitconfig`: the
+  `git` role writes its defaults to `/etc/gitconfig` instead, so the two
+  never edit the same file
+* the account the playbook provisions is the one running it, never a name
+  written down here
 
-=== Rules
+Guards:
 
-. Anything user-identifying goes in the vault: e-mail addresses, account names
-  — including the login account of each machine, see <<per-machine>> —
-  tokens, SSH keys, internal/private URLs, license keys, proxy credentials.
-  Assume every plaintext file in this repository is world-readable, because it
-  is.
-. The vault password is *never* stored in this repository, never passed on a
-  command line, never echoed, never logged, never placed in CI without a
-  protected secret store.
-. Tasks that render secret values set `no_log: true` and carry the `secrets`
-  tag.
-. Files written from secrets get explicit `mode: "0600"` and the correct owner.
-
-=== The password file
-
-Stored outside the repository:
-
-[source,bash]
-----
-mkdir -p ~/.config/ansible
-install -m 0600 /dev/null ~/.config/ansible/vault_pass
-$EDITOR ~/.config/ansible/vault_pass      # avoids shell history
-uv run invoke vault-init
-----
-
-CAUTION: Never run `echo "$PASSWORD" > file` — the password would land in your
-shell history. Never place a password file inside the repository, not even one
-that is git-ignored.
-
-=== Everyday commands
-
-[source,bash]
-----
-uv run invoke vault-init      # create the encrypted vault from the example
-uv run invoke vault-edit      # edit in place; never decrypted to disk
-
-uv run ansible-vault encrypt_string 'secret-value' --name 'vault_some_token'
-----
-
-=== Leak prevention
-
-* `.gitignore` excludes `vault_pass*`, `*.vault_pass`, `*.decrypted.yml`, `.env`
-* a pre-commit hook (`scripts/check_vault_encrypted.py`) rejects any `vault.yml`
-  that is not `$ANSIBLE_VAULT`-headed, and any staged password-shaped file
-* `detect-private-key` runs alongside it
-* `.gitattributes` marks the vault `diff=ansible-vault` so `git diff` does not
-  print plaintext
-* playbook runs avoid `-vvv` in shared logs; verbose output expands variables
+* `gitleaks` scans the whole history in `invoke lint`, and
+  `detect-private-key` runs as a pre-commit hook
+* playbook runs avoid `-vvv` in shared logs; verbose output expands
+  variables
 
 == Windows configuration
 
@@ -1253,9 +1150,6 @@ CI runs *those same tasks*. There is no CI-only command.
 | `invoke site`
 | Build the documentation site into `build/site/`
 
-| `invoke vault-init [--host]` / `invoke vault-edit [--host]`
-| Create or edit a vault, shared or this machine's; never decrypts to disk
-
 | `invoke all`
 | `lint`, `syntax`, `site`, then converge on every supported Ubuntu release
 |===
@@ -1281,18 +1175,10 @@ fixes it for good, see <<docker-mtu>>. CI is unaffected: runners are 1500 end
 to end.
 ====
 
-Invoke was chosen over `make` because these tasks are Python: they inspect
-whether the vault password file exists, validate arguments, and assemble command
-lines conditionally. Expressing that in a Makefile means shell inside recipes
+Invoke was chosen over `make` because these tasks are Python: they validate
+arguments, look up pins and checksums, and assemble command lines
+conditionally. Expressing that in a Makefile means shell inside recipes
 with no way to test it; in `tasks.py` it is ordinary code that `ruff` checks.
-
-=== Vault handling in the task runner
-
-`tasks.py` adds `--vault-password-file` only when the password file is actually
-present, and passes the *path* — it never reads a password. This is also why
-`ansible.cfg` deliberately omits `vault_password_file`: a missing file named
-there makes every command fail, including lint and syntax checks on a fresh
-clone and in CI, where no password exists at all.
 
 [#whitespace]
 === Whitespace and indentation
@@ -1368,8 +1254,7 @@ cover:
 
 | `gitleaks` (`invoke leaks`)
 | the whole git history for committed secrets — the backstop behind
-  `detect-private-key` and the vault guard, which only see what is being
-  committed now
+  `detect-private-key`, which only sees what is being committed now
 |===
 
 All of them except `gitleaks` are PyPI packages in the `dev` group, locked in
@@ -1386,8 +1271,8 @@ missing.
 uv run pre-commit install
 ----
 
-Hooks: the vault guard, `detect-private-key`, `ruff`, `ruff-format`, `yamllint`,
-and the usual whitespace fixers. `pre-commit` itself is a dev dependency, and
+Hooks: `detect-private-key`, `ruff`, `ruff-format`, `yamllint`, and the usual
+whitespace fixers. `pre-commit` itself is a dev dependency, and
 the `ruff` and `yamllint` hooks call `uv run`, so they use the versions locked
 in `uv.lock` — the same ones as `invoke lint` and CI — rather than a second
 copy pinned in `.pre-commit-config.yaml`.
@@ -1477,18 +1362,10 @@ release event checks out its tag by default, and building from there would
 publish that tag's content as the `main` version; the full history is what
 makes the release tags visible as versions in the first place.
 
-CI has no vault password. Tasks that consume secrets carry the `secrets` tag and
-are excluded there; converge runs instead use `tests/vars.ci.yml`, a file of
-obviously-fake values that exercises the same code paths. This is deliberate:
-placing a real vault password in CI would contradict <<vault>>.
-
-Skipping the tasks is not enough on its own. Ansible decrypts vault files
-while it *loads variables*, long before it looks at tags, so an encrypted
-`vault.yml` anywhere under `inventory/` fails the whole run when no password
-exists. `invoke converge` therefore mounts the repository read-only, copies it
-aside inside the container, and deletes every `vault.yml` from the copy. The
-checkout is untouched, and CI keeps working the day the first real vault is
-committed.
+CI needs no secret, because there is none: converge runs the whole playbook,
+twice, as root in a throwaway container — root is then also the account that
+joins the groups. The repository is mounted read-only and copied aside
+first, so a converge can never write back into the checkout.
 
 == WSL specifics
 

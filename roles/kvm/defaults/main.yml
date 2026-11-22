@@ -22,8 +22,8 @@ kvm_packages:
   - virt-top
 
 # Membership in kvm opens /dev/kvm, membership in libvirt the system libvirtd
-# socket.  libvirt is equivalent to root, like docker.  The account comes from
-# the vault by way of `workstation_user` -- see the docker role for why.
+# socket.  libvirt is equivalent to root, like docker.  The account is
+# `workstation_user`, the same as in the docker role.
 kvm_manage_groups: true
 kvm_groups:
   - kvm

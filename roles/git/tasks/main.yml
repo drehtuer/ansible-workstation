@@ -46,38 +46,32 @@
     state: present
     update_cache: true
 
-# The global half of `git lfs install`, without a command that reports
-# changed on every run.  Not secret, so it runs in CI as well.
-- name: Register the git-lfs filters
+# The blueprint's git defaults go into the system file, /etc/gitconfig.
+# ~/.gitconfig belongs to the dotfiles repository (chezmoi) alone, together
+# with everything personal -- name, e-mail, signing key -- and a setting
+# there overrides one here.  Two tools writing the same file would undo
+# each other on every run.
+#
+# Set key by key, so a re-run reports no change: the git-lfs filters are
+# the system half of `git lfs install`, without a command that reports
+# changed every time.
+- name: Set the system-wide git defaults
+  become: true
   community.general.git_config:
     name: "{{ item.name }}"
-    scope: global
+    scope: system
+    value: "{{ item.value }}"
+  loop: "{{ git_system_config }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Register the git-lfs filters system-wide
+  become: true
+  community.general.git_config:
+    name: "{{ item.name }}"
+    scope: system
     value: "{{ item.value }}"
   loop: "{{ git_lfs_config }}"
   loop_control:
     label: "{{ item.name }}"
   when: "'git-lfs' in git_packages"
-
-- name: Configure git identity
-  community.general.git_config:
-    name: "{{ item.name }}"
-    scope: global
-    value: "{{ item.value }}"
-  loop:
-    - {name: "user.name", value: "{{ git_user_name }}"}
-    - {name: "user.email", value: "{{ git_user_email }}"}
-    - {name: "init.defaultBranch", value: "{{ git_default_branch }}"}
-    - {name: "core.editor", value: "{{ git_editor }}"}
-  loop_control:
-    label: "{{ item.name }}"
-  no_log: true
-  tags: [secrets]
-
-- name: Configure the git signing key
-  community.general.git_config:
-    name: user.signingkey
-    scope: global
-    value: "{{ git_signing_key }}"
-  when: git_signing_key | length > 0
-  no_log: true
-  tags: [secrets]

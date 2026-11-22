@@ -11,10 +11,9 @@ docker_packages:
 # It is equivalent to root on this machine, which is the accepted trade on a
 # single-user workstation; set docker_manage_group to false to opt out.
 #
-# The account comes from the vault by way of `workstation_user`, not from
-# ansible_user_id: the name differs between machines, and it is
-# user-identifying data that does not belong in a public repository.  Each
-# machine carries its own under inventory/host_vars/<hostname>/vault.yml.
+# The account is `workstation_user`: by default the one the playbook runs
+# as, which is the login account -- the playbook runs unprivileged and uses
+# sudo only per task.  Override it with -e workstation_user=<account>.
 docker_manage_group: true
 docker_group: docker
 docker_users:
