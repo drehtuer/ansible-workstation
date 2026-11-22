@@ -4,8 +4,13 @@
 #
 # python3-pip installs pip, but PEP 668 still refuses `pip install` into the
 # system Python: use a venv, or pipx for command-line tools.
+#
+# python3-invoke puts `invoke` on the PATH for projects driven by a
+# tasks.py.  This repository does not use it: its own Invoke is locked in
+# uv.lock and runs from .venv.
 python_packages:
   - pipx
   - python-is-python3
+  - python3-invoke
   - python3-pip
   - python3-venv

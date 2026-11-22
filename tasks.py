@@ -6,6 +6,7 @@ run byte-identical commands.  Invoke with ``uv run invoke <task>``.
 
 from __future__ import annotations
 
+import re
 import shutil
 import socket
 import sys
@@ -26,6 +27,16 @@ UBUNTU_TARGETS = ["26.04", "24.04"]
 VAULT_PASSWORD_FILE = Path.home() / ".config" / "ansible" / "vault_pass"
 VAULT_FILE = ROOT / "inventory" / "group_vars" / "all" / "vault.yml"
 HOST_VARS = ROOT / "inventory" / "host_vars"
+
+# requirements.txt is this command's output, never edited by hand.
+EXPORT = "uv export --no-dev --no-hashes --format requirements-txt"
+
+# Pins that carry a SHA-256 next to their version.  Renovate raises the
+# version; `invoke checksums` rewrites the checksums to match it.
+CHEZMOI_DEFAULTS = ROOT / "roles" / "chezmoi" / "defaults" / "main.yml"
+CHEZMOI_RELEASES = "https://github.com/twpayne/chezmoi/releases/download"
+FONTS_DEFAULTS = ROOT / "roles" / "fonts" / "defaults" / "main.yml"
+FONTS_RELEASES = "https://github.com/ryanoasis/nerd-fonts/releases/download"
 
 HOST_HELP = (
     "Work on this machine's own vault under inventory/host_vars/, "
@@ -68,11 +79,34 @@ def setup(c: Context) -> None:
 def lock(c: Context) -> None:
     """Refresh uv.lock and the exported requirements.txt."""
     c.run("uv lock", pty=True)
-    c.run(
-        "uv export --no-dev --no-hashes --format requirements-txt "
-        "-o requirements.txt",
-        pty=True,
-    )
+    c.run(f"{EXPORT} -o requirements.txt", pty=True)
+
+
+def requirement_lines(text: str) -> list[str]:
+    """Return the requirement lines of an exported file, comments dropped."""
+    return [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+@task(name="lock-check")
+def lock_check(c: Context) -> None:
+    """Fail when uv.lock or requirements.txt no longer match pyproject.toml.
+
+    Renovate updates ``uv.lock`` but cannot regenerate the exported
+    ``requirements.txt``; this is what catches the two drifting apart.
+    """
+    c.run("uv lock --check", pty=True)
+    exported = c.run(f"{EXPORT} --frozen", hide=True).stdout
+    committed = (ROOT / "requirements.txt").read_text()
+    if requirement_lines(exported) != requirement_lines(committed):
+        raise Exit(
+            "requirements.txt does not match uv.lock. Run "
+            "`uv run invoke lock` and commit both files.",
+            code=1,
+        )
 
 
 @task
@@ -83,7 +117,8 @@ def fmt(c: Context) -> None:
 
 @task
 def lint(c: Context) -> None:
-    """Lint YAML, Ansible content and Python sources."""
+    """Check the lock files, then lint YAML, Ansible and Python sources."""
+    lock_check(c)
     c.run("yamllint .", pty=True)
     c.run("ansible-lint", pty=True)
     c.run("ruff check .", pty=True)
@@ -244,3 +279,80 @@ def run_all(c: Context) -> None:
     for ubuntu in UBUNTU_TARGETS:
         print(f"\n=== converge {ubuntu} ===", file=sys.stderr)
         converge(c, ubuntu=ubuntu)
+
+
+def pinned(text: str, variable: str) -> str:
+    """Return the value of a top-level ``variable: value`` line in YAML."""
+    match = re.search(rf'^{variable}: "?([^"\n]+)"?$', text, re.MULTILINE)
+    if match is None:
+        raise Exit(f"{variable} not found", code=2)
+    return match.group(1)
+
+
+def release_checksums(c: Context, url: str) -> dict[str, str]:
+    """Download a ``<sha256>  <file>`` listing and map file name to sum."""
+    listing = c.run(f"curl -fsSL {url}", hide=True).stdout
+    sums = {}
+    for line in listing.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and re.fullmatch(r"[0-9a-f]{64}", fields[0]):
+            sums[fields[1].lstrip("*")] = fields[0]
+    return sums
+
+
+def rewrite(
+    path: Path, pattern: str, sums: dict[str, str], key: str, check: bool
+) -> bool:
+    """Point every SHA-256 that ``pattern`` finds at its released value.
+
+    ``pattern`` captures the text before the checksum as ``head``, the
+    checksum as ``sha`` and the name it belongs to as ``name``; ``key`` turns
+    that name into a file name of the release listing.  Returns whether a
+    checksum was stale.
+    """
+    text = path.read_text()
+
+    def replace(match: re.Match[str]) -> str:
+        file = key.format(name=match["name"])
+        if file not in sums:
+            raise Exit(f"{file} is not in the release's checksums", code=1)
+        state = "ok" if match["sha"] == sums[file] else "stale"
+        print(f"{path.relative_to(ROOT)}: {file}: {state}")
+        return match["head"] + sums[file]
+
+    updated = re.sub(pattern, replace, text, flags=re.MULTILINE)
+    if updated != text and not check:
+        path.write_text(updated)
+    return updated != text
+
+
+@task(help={"check": "Only report stale checksums; write nothing."})
+def checksums(c: Context, check: bool = False) -> None:
+    """Rewrite the SHA-256 pins to match the pinned release versions.
+
+    chezmoi and the Nerd Font are pinned to a version *and* a checksum.
+    Renovate raises the version but cannot compute the checksum, so its pull
+    request fails converge until this has been run on its branch.
+    """
+    chezmoi = pinned(CHEZMOI_DEFAULTS.read_text(), "chezmoi_version")
+    fonts = pinned(FONTS_DEFAULTS.read_text(), "fonts_nerd_fonts_version")
+    stale = rewrite(
+        CHEZMOI_DEFAULTS,
+        r"^(?P<head>  (?P<name>[a-z0-9]+): )(?P<sha>[0-9a-f]{64})$",
+        release_checksums(
+            c,
+            f"{CHEZMOI_RELEASES}/v{chezmoi}/chezmoi_{chezmoi}_checksums.txt",
+        ),
+        f"chezmoi_{chezmoi}_linux_{{name}}.deb",
+        check,
+    )
+    stale |= rewrite(
+        FONTS_DEFAULTS,
+        r"^(?P<head>\s+- name: (?P<name>\w+)\n\s+sha256: >-\n\s+)"
+        r"(?P<sha>[0-9a-f]{64})$",
+        release_checksums(c, f"{FONTS_RELEASES}/{fonts}/SHA-256.txt"),
+        "{name}.zip",
+        check,
+    )
+    if stale and check:
+        raise Exit("checksums are stale; run `uv run invoke checksums`", 1)

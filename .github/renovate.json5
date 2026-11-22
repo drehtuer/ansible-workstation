@@ -1,0 +1,116 @@
+// Renovate keeps every pinned version in this repository current.
+// See README, "Keeping pins current".
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    // Conventional-commit subjects, like every other commit here:
+    // chore(deps): update ...
+    ':semanticCommits',
+    ':semanticCommitTypeAll(chore)',
+  ],
+
+  // A release has to be two weeks old before Renovate proposes it, so a
+  // broken or pulled release is usually gone again by then.  Security
+  // fixes are not held back by this, nor by the schedule.
+  minimumReleaseAge: '14 days',
+  internalChecksFilter: 'strict',
+
+  // One batch a week, early on Monday (UTC), instead of a trickle.
+  schedule: ['* 0-5 * * 1'],
+  labels: ['dependencies'],
+
+  // Transitive Python and npm dependencies move once a month.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['* 0-5 1 * *'],
+  },
+
+  // requirements.txt is not a source: `invoke lock` exports it from
+  // uv.lock.  Renovate updating it on its own would let the two drift, so
+  // it is left alone, and `invoke lint` fails while it is out of date.
+  pip_requirements: {
+    enabled: false,
+  },
+
+  packageRules: [
+    {
+      // Only the lock file moves; the ranges in pyproject.toml are
+      // decisions, not floors to chase.
+      matchManagers: ['pep621'],
+      rangeStrategy: 'update-lockfile',
+      groupName: 'Python toolchain',
+    },
+    {
+      // 2.22 needs Python 3.13, and 24.04 ships 3.12.  See CLAUDE.adoc,
+      // "Decisions already made".
+      matchPackageNames: ['ansible-core'],
+      allowedVersions: '<2.22',
+    },
+    {
+      matchManagers: ['npm'],
+      groupName: 'Antora',
+    },
+    {
+      matchManagers: ['github-actions'],
+      groupName: 'GitHub Actions',
+    },
+    {
+      matchDatasources: ['rubygems'],
+      groupName: 'Ruby gems',
+    },
+    {
+      // chezmoi tags its releases v2.74.1; chezmoi_version holds 2.74.1.
+      matchDepNames: ['twpayne/chezmoi'],
+      extractVersion: '^v(?<version>.+)$',
+    },
+    {
+      // These two are pinned to a SHA-256 as well as a version, and
+      // Renovate can only raise the version.
+      matchDepNames: ['twpayne/chezmoi', 'ryanoasis/nerd-fonts'],
+      prBodyNotes: [
+        '**Checksums:** run `uv run invoke checksums` on this branch and \
+commit the result. Converge fails until the SHA-256 matches.',
+      ],
+    },
+  ],
+
+  customManagers: [
+    {
+      // nodejs_global_packages: a `name` line followed by a `version` line.
+      customType: 'regex',
+      managerFilePatterns: ['/^roles/nodejs/defaults/main\\.yml$/'],
+      matchStrings: [
+        '- name: "(?<depName>[^"]+)"\\n\
+\\s+version: "(?<currentValue>[^"]+)"',
+      ],
+      datasourceTemplate: 'npm',
+    },
+    {
+      // Any role variable announced by a comment on the line above it:
+      //   # renovate: datasource=github-releases depName=owner/repo
+      //   some_version: "1.2.3"
+      // The release tag is used as is; a package rule above strips a
+      // prefix where the variable leaves it out.
+      customType: 'regex',
+      managerFilePatterns: ['/^roles/[^/]+/defaults/main\\.yml$/'],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) \
+depName=(?<depName>\\S+)\\n[a-z_]+: "?(?<currentValue>[^"\\n]+)"?',
+      ],
+    },
+    {
+      // gem install <name> -v <version>, in CI and the devcontainer image.
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^\\.github/workflows/[^/]+\\.ya?ml$/',
+        '/^\\.devcontainer/Dockerfile$/',
+      ],
+      matchStrings: [
+        'gem install (?:--no-document )?(?<depName>[a-z0-9_-]+) \
+-v (?<currentValue>[0-9][0-9.]*)',
+      ],
+      datasourceTemplate: 'rubygems',
+    },
+  ],
+}

@@ -5,6 +5,9 @@ fonts_packages:
 
 # Nerd Fonts releases one archive per family.  Pinned, with the checksum of
 # the archive, so a rebuilt release cannot change what lands on the machine.
+# Renovate raises the version; `uv run invoke checksums` then rewrites the
+# checksums below from the release's SHA-256.txt.
+# renovate: datasource=github-releases depName=ryanoasis/nerd-fonts
 fonts_nerd_fonts_version: v3.5.1
 fonts_nerd_fonts_url: >-
   https://github.com/ryanoasis/nerd-fonts/releases/download

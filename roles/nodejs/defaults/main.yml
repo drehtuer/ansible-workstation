@@ -43,10 +43,9 @@ nodejs_packages:
 # community.general.npm: see README, "Global npm tools".
 #
 # Every entry is pinned to an exact version, so a run installs what is
-# written here and nothing newer.  Dependabot does not watch this list;
-# raise a version by hand, after checking the release:
-#
-#   npm view <name> version time --json
+# written here and nothing newer.  Renovate watches this list and proposes
+# new versions; keep each entry as a `name` line directly followed by a
+# `version` line, which is the shape it looks for.
 nodejs_global_packages:
   # OpenSpec, spec-driven development for AI coding assistants.  Needs node
   # >= 22.20, which nodejs_major 24 satisfies.
