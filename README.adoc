@@ -638,7 +638,8 @@ visible from where it sits.
   `wireshark`
 
 | `python`
-| `python-is-python3`, `python3-pip`, `python3-venv`, `pipx`
+| `python-is-python3`, `python3-invoke`, `python3-pip`, `python3-venv`,
+  `pipx`
 
 | `android`
 | `adb` and `fastboot`
@@ -976,7 +977,10 @@ The archive's `python3` is the interpreter Ubuntu itself depends on, so it is
 completed rather than replaced: `python-is-python3` makes `python` mean
 `python3`, and `python3-venv` and `pipx` are the two supported ways to
 install anything. `python3-pip` is there for use inside a venv — PEP 668
-still refuses `pip install` into the system Python.
+still refuses `pip install` into the system Python. `python3-invoke` puts
+`invoke` on the `PATH` for projects that keep their tasks in a `tasks.py`;
+this repository's own Invoke is still the locked one, run as
+`uv run invoke`.
 
 === The Fira Code Nerd Font
 
