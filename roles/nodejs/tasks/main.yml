@@ -64,3 +64,17 @@
     name: "{{ nodejs_packages }}"
     state: present
     update_cache: true
+
+# The npm module compares the installed version with the pinned one and acts
+# only on a difference, so a re-run reports no change.  Root-owned and
+# global, like the node it runs on: nothing here updates itself.
+- name: Install the global npm tools
+  become: true
+  community.general.npm:
+    name: "{{ item.name }}"
+    version: "{{ item.version }}"
+    global: true
+    state: present
+  loop: "{{ nodejs_global_packages }}"
+  loop_control:
+    label: "{{ item.name }}@{{ item.version }}"

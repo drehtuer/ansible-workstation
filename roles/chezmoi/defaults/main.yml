@@ -1,0 +1,32 @@
+---
+# chezmoi, the tool the separate dotfiles repository is applied with.  This
+# repository only installs it and never runs it: dotfiles are that other
+# repository's business, see README, "chezmoi".
+#
+# The Ubuntu archive does not carry chezmoi on 24.04 or 26.04, and upstream
+# publishes no apt repository -- but every GitHub release has a .deb per
+# architecture.  Downloading that, pinned to a version and its SHA-256, and
+# installing it with apt keeps it a normal dpkg package that `apt remove`
+# undoes.  The `curl | sh` installer would do neither.
+#
+# The base role's apt upgrade cannot see a new release, since there is no
+# repository behind it: raise the version here, together with both
+# checksums, from the release's checksums file:
+#
+#   curl -fsSL https://github.com/twpayne/chezmoi/releases/download/\
+#   v<version>/chezmoi_<version>_checksums.txt | grep '_linux_.*\.deb$'
+#
+# That file is signed with cosign (chezmoi_cosign.pub in the same release)
+# for anyone who wants to verify it before copying the numbers here.
+chezmoi_version: "2.74.1"
+chezmoi_url: https://github.com/twpayne/chezmoi/releases/download
+chezmoi_sha256:
+  amd64: d63f7a876066f8de992c5a47046049ad569e05d8ab30d8507f123281d7cea15c
+  arm64: a348c5fa9d51cebb8a38db0711df4658a1d6ad79aa2667c4b58b5f4b08630a4d
+
+# Ansible's architecture names, mapped onto the ones in the release.
+chezmoi_architectures:
+  x86_64: amd64
+  aarch64: arm64
+
+chezmoi_cache_dir: /var/cache/chezmoi

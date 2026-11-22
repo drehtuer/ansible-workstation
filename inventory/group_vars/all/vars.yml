@@ -22,6 +22,7 @@ enable_network: true
 enable_android: true
 enable_browser: true
 enable_kvm: true
+enable_chezmoi: true
 enable_editor: true
 enable_docker: true
 enable_fonts: true

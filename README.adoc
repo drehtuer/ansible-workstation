@@ -56,9 +56,9 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   `playbooks/maintenance.yml` (manual, see <<maintenance>>).
 
 | Roles
-| `wsl`, `base`, `shell`, `git`, `editor`, `docker`, `fonts`, `nodejs`,
-  `claude`, `network`, `python`, `android`, `browser`, `kvm` on the Linux
-  side; `wslconfig` and `windows` on the Windows side; `wsl_compact`,
+| `wsl`, `base`, `shell`, `chezmoi`, `git`, `editor`, `docker`, `fonts`,
+  `nodejs`, `claude`, `network`, `python`, `android`, `browser`, `kvm` on the
+  Linux side; `wslconfig` and `windows` on the Windows side; `wsl_compact`,
   `wsl_update` and `wsl_shutdown` on request only. All but `windows`, whose
   inputs are still empty, install the real toolset — see <<toolset>>.
 
@@ -186,11 +186,13 @@ Ordered roughly by dependency.
   connection; there is nothing left for a role to do.
 * *Checking GitHub for a newer WSL.* Replaced by `--tags wsl_update`, which
   installs it, see <<maintenance>>.
-* *A dotfile manager* (stow, chezmoi, yadm). Should dotfiles ever come back,
-  plain `ansible.builtin.template` and `ansible.builtin.copy` already offer
-  everything such a tool adds — templating, per-host variation, idempotent
-  placement, secret injection from the vault — without a second templating
-  syntax and a second source of truth.
+* *A dotfile manager run by this repository* (stow, chezmoi, yadm). Should
+  dotfiles ever come back here, plain `ansible.builtin.template` and
+  `ansible.builtin.copy` already offer everything such a tool adds —
+  templating, per-host variation, idempotent placement, secret injection
+  from the vault — without a second templating syntax and a second source of
+  truth. Installing chezmoi for the *separate* dotfiles repository is a
+  different thing, and is done, see <<chezmoi>>.
 * *Molecule.* The converge task drives a throwaway container directly; Molecule
   would add a heavy dependency for the same result.
 * *A Makefile.* Replaced by Invoke, see <<testing>>.
@@ -408,6 +410,7 @@ throwaway converge tests only.
 │   ├── docker/
 │   ├── fonts/
 │   ├── nodejs/
+│   ├── chezmoi/
 │   ├── claude/
 │   ├── network/
 │   ├── python/
@@ -592,6 +595,9 @@ visible from where it sits.
   `software-properties-common`, `sudo`, `tree`, `unzip`, `usbutils`, `wget`,
   `zstd`
 
+| `chezmoi`
+| chezmoi, the tool the separate dotfiles repository is applied with
+
 | `shell`
 | `bash-completion`, `fzf`, `ripgrep`, `screen`, `tmux`, `wl-clipboard` (the
   Windows clipboard, through WSLg), and the login shell
@@ -611,7 +617,8 @@ visible from where it sits.
 | Fira Code Nerd Font, with ligatures enabled through fontconfig
 
 | `nodejs`
-| The node runtime and npm, from NodeSource, pinned to a major line
+| The node runtime and npm, from NodeSource, pinned to a major line, and
+  the global npm tools: OpenSpec
 
 | `claude`
 | Claude Code, from Anthropic's apt repository, on the `stable` channel
@@ -750,6 +757,33 @@ NOTE: npm comes inside NodeSource's `nodejs` package. Do not add Ubuntu's
 separate `npm` package anywhere: it depends on the archive's node and drags
 it back in.
 
+[#npm-tools]
+==== Global npm tools
+
+Some command-line tools ship only as npm packages.
+link:https://github.com/Fission-AI/OpenSpec[OpenSpec] is one:
+spec-driven development for AI coding assistants, as the `openspec`
+command. The `nodejs` role installs such tools globally, with the node it
+has just installed:
+
+[source,yaml]
+----
+nodejs_global_packages:
+  - name: "@fission-ai/openspec"
+    version: "2.1.1"
+----
+
+This is the only place a role uses npm, and it goes through
+`community.general.npm` rather than a shell call: the module compares the
+installed version with the pinned one and acts only on a difference. Each
+entry is pinned to an exact version, so a run installs what is written there
+and nothing newer. Dependabot does not watch this list; raise a version by
+hand, after `npm view <name> version time --json`.
+
+These tools run on the provisioned node. They have nothing to do with the
+site's Antora, which is pinned in `package.json` and installed by
+`npm ci` in the devcontainer and CI — see <<documentation>>.
+
 [#claude]
 === Claude Code
 
@@ -769,8 +803,8 @@ Anthropic also offers a native installer and an npm package. Neither fits:
 
 * the installer is `curl | bash`, which is not idempotent, and its Linux
   binaries are not code-signed — the apt repository is
-* the npm package would have a role shell out to `npm`, which is ruled out
-  here
+* the npm package updates itself, and Anthropic advises against the
+  root-owned global install that <<npm-tools,the nodejs role>> makes
 * both update themselves outside apt; the apt package does not, so the `safe`
   upgrade in `base` keeps it current like everything else
 
@@ -853,6 +887,33 @@ its own: attach the phone from Windows with
 link:https://github.com/dorssel/usbipd-win[usbipd-win] first, after which
 `lsusb` (from `usbutils` in `base`) lists it and `adb devices` finds it.
 `adb` over the network needs nothing of the kind.
+
+[#chezmoi]
+=== chezmoi
+
+Dotfiles live in a separate repository, applied with
+link:https://www.chezmoi.io/[chezmoi]. This repository installs chezmoi and
+stops there: it never runs `chezmoi init` or `chezmoi apply`, holds no
+dotfiles and does not know where that repository is.
+
+Neither Ubuntu release carries chezmoi, and upstream has no apt repository,
+but every release on GitHub has a `.deb` per architecture. The role
+downloads that, pinned to a version *and* a SHA-256 — the same way the Nerd
+Font arrives — and installs it with apt, so it stays an ordinary package
+that `apt remove` undoes. The `curl | sh` installer would leave a binary apt
+knows nothing about.
+
+[source,yaml]
+----
+chezmoi_version: "2.74.1"
+chezmoi_sha256:
+  amd64: d63f7a87…
+  arm64: a348c5fa…
+----
+
+With no repository behind it, the `safe` upgrade in `base` never sees a new
+release. Raise the version and both checksums together, from the release's
+`checksums.txt`; `roles/chezmoi/defaults/main.yml` has the command.
 
 [#firefox]
 === Firefox

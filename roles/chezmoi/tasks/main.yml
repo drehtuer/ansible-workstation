@@ -1,0 +1,37 @@
+---
+- name: Assert that chezmoi publishes a package for this architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_architecture in chezmoi_architectures
+    fail_msg: >-
+      No chezmoi .deb is pinned for {{ ansible_architecture }}; supported:
+      {{ chezmoi_architectures | list | join(', ') }}.
+    quiet: true
+
+- name: Install chezmoi
+  vars:
+    chezmoi_arch: "{{ chezmoi_architectures[ansible_architecture] }}"
+    chezmoi_deb: >-
+      chezmoi_{{ chezmoi_version }}_linux_{{ chezmoi_arch }}.deb
+  become: true
+  block:
+    - name: Create the download directory
+      ansible.builtin.file:
+        path: "{{ chezmoi_cache_dir }}"
+        state: directory
+        mode: "0755"
+
+    # The checksum makes a re-run a no-op and a rebuilt release a failure.
+    - name: Download the chezmoi package
+      ansible.builtin.get_url:
+        url: >-
+          {{ chezmoi_url }}/v{{ chezmoi_version }}/{{ chezmoi_deb }}
+        dest: "{{ chezmoi_cache_dir }}/{{ chezmoi_deb }}"
+        checksum: "sha256:{{ chezmoi_sha256[chezmoi_arch] }}"
+        mode: "0644"
+
+    # apt compares the file's version with the installed one, so this only
+    # acts on a first install or a changed chezmoi_version.
+    - name: Install the chezmoi package
+      ansible.builtin.apt:
+        deb: "{{ chezmoi_cache_dir }}/{{ chezmoi_deb }}"
