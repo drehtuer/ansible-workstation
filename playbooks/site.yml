@@ -27,6 +27,9 @@
       tags: [base]
     - role: shell
       tags: [shell]
+    - role: chezmoi
+      tags: [chezmoi]
+      when: enable_chezmoi | bool
     - role: git
       tags: [git]
     - role: editor

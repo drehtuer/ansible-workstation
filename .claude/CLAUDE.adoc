@@ -68,8 +68,9 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | README, _This repository is public, on purpose_
 
 | No dotfiles role: dotfiles, `keychain` and SSH key storage belong to a
-  separate dotfiles repository. No dotfile manager here either
-| README, _Roadmap / Deferred_
+  separate dotfiles repository. This repository installs chezmoi for it and
+  never runs it
+| README, _Roadmap / Deferred_ and _chezmoi_
 
 | No Molecule — `invoke converge` drives a container directly
 | README, _Roadmap / Deferred_
@@ -108,6 +109,11 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | Firefox comes from Mozilla's apt repository, pinned by origin at 1000 —
   never the archive's snap stub
 | README, _Firefox_
+
+| CLIs that ship only on npm (OpenSpec) are installed globally by the
+  `nodejs` role, through `community.general.npm`, each pinned to an exact
+  version
+| README, _Global npm tools_
 
 | `ansible-core` stays on the newest line that still runs on 24.04's Python
   3.12 — 2.21 today; 2.22 needs 3.13
@@ -268,7 +274,9 @@ _Documentation_.
 * The site's Node.js is a *documentation* dependency: it belongs to the
   devcontainer and to CI, and it is not the runtime the `nodejs` role
   provisions. Keep the two apart. No role may shell out to `npm` to do its
-  work, nothing the playbooks install may depend on the site toolchain, and
+  work — the one exception is `nodejs_global_packages`, see _Global npm
+  tools_ below — nothing the playbooks install may depend on the site
+  toolchain, and
   `invoke site` must never depend on a provisioned workstation — the two are
   installed by different mechanisms, on different machines, at different
   versions.
@@ -399,6 +407,14 @@ armor differs. Never `apt-key`.
 `deb822_repository` needs `python3-debian`, which Ubuntu does not install by
 default. The role that adds a source installs it, so `--tags <role>` works on
 its own.
+
+Global npm tools::
+A command-line tool that exists only as an npm package goes into
+`nodejs_global_packages`, as `name` plus an exact `version` — never a range
+and never `latest`. It is installed with `community.general.npm`, never
+with `npm` in a `command` or `shell` task. Nothing else in any role may use
+npm, and a tool that has an apt package or a signed apt repository takes
+that instead: Claude Code is on npm too, and comes from apt.
 
 Alternatives::
 When a package should take over a well-known command name, register an

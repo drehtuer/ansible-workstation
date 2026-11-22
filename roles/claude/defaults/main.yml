@@ -6,8 +6,8 @@
 #
 #   * the native installer (curl | bash) is not idempotent, its Linux
 #     binaries are not code-signed, and it updates itself behind apt's back
-#   * the npm package would make this role shell out to npm, which the
-#     working agreements rule out
+#   * the npm package updates itself outside any pin, and Anthropic advises
+#     against the root-owned global install the nodejs role would make
 #
 # The apt package is signed by the repository key, does not update itself,
 # and is kept current by the `safe` upgrade in the base role like any other

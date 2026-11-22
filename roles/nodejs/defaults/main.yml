@@ -36,3 +36,19 @@ nodejs_pin_priority: 600
 # npm package here, it depends on the archive's node.
 nodejs_packages:
   - nodejs
+
+# Command-line tools that ship only as npm packages, installed globally with
+# the node above -- into /usr/lib/node_modules, on PATH as /usr/bin/<name>.
+# This is the one place a role uses npm, and only through
+# community.general.npm: see README, "Global npm tools".
+#
+# Every entry is pinned to an exact version, so a run installs what is
+# written here and nothing newer.  Dependabot does not watch this list;
+# raise a version by hand, after checking the release:
+#
+#   npm view <name> version time --json
+nodejs_global_packages:
+  # OpenSpec, spec-driven development for AI coding assistants.  Needs node
+  # >= 22.20, which nodejs_major 24 satisfies.
+  - name: "@fission-ai/openspec"
+    version: "2.1.1"
