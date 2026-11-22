@@ -54,7 +54,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.4"
 
       # kramdoc converts the Markdown pages during the site build.
       - run: gem install kramdown-asciidoc -v 2.1.1
