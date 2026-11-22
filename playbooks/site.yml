@@ -8,11 +8,11 @@
     - name: Assert a supported Ubuntu release
       ansible.builtin.assert:
         that:
-          - ansible_distribution == "Ubuntu"
-          - ansible_distribution_version in supported_ubuntu_releases
+          - ansible_facts.distribution == "Ubuntu"
+          - ansible_facts.distribution_version in supported_ubuntu_releases
         fail_msg: >-
-          Unsupported platform {{ ansible_distribution }}
-          {{ ansible_distribution_version }};
+          Unsupported platform {{ ansible_facts.distribution }}
+          {{ ansible_facts.distribution_version }};
           supported: {{ supported_ubuntu_releases | join(', ') }}
       vars:
         supported_ubuntu_releases:

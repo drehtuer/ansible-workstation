@@ -21,7 +21,7 @@ import sys
 
 
 def hostname() -> str:
-    """Return the short hostname, the same value as ``ansible_hostname``."""
+    """Return the short hostname, the same as ``ansible_facts.hostname``."""
     return socket.gethostname().split(".", 1)[0]
 
 

@@ -8,7 +8,7 @@
     apply:
       tags: [wsl_check]
   when: >-
-    ansible_env.WSL_DISTRO_NAME is defined
+    ansible_facts.env.WSL_DISTRO_NAME is defined
     or '/proc/sys/fs/binfmt_misc/WSLInterop' is exists
   tags: [wsl_check]
 

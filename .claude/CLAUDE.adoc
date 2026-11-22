@@ -167,7 +167,7 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | README, _What gets installed_
 
 | The account that joins `docker`, `kvm` and `libvirt` is the one running the
-  playbook: `workstation_user` defaults to `ansible_user_id`, overridable
+  playbook: `workstation_user` defaults to `ansible_facts.user_id`, overridable
   with `-e`
 | README, _The account that joins groups_
 |===
@@ -458,8 +458,16 @@ over the file and `update-alternatives --config` reverses it.
 Distribution support::
 Ubuntu 26.04 is the default target; 24.04 is still supported. Both must
 work. The first entry of `UBUNTU_TARGETS` in `tasks.py` is the default —
-keep 26.04 there. When they differ, branch on `ansible_distribution_version`
-— never on a hardcoded codename in a URL without a variable behind it.
+keep 26.04 there. When they differ, branch on
+`ansible_facts.distribution_version` — never on a hardcoded codename in a URL
+without a variable behind it.
+
+Facts::
+Read facts as `ansible_facts.<name>` — `ansible_facts.env.HOME`,
+`ansible_facts.distribution_version` — never as the top-level
+`ansible_<name>` variables. `ansible.cfg` sets `inject_facts_as_vars =
+false`, so those are undefined here: the injection is deprecated and is
+removed in ansible-core 2.24.
 
 Booleans and quoting::
 `true`/`false` lowercase; quote file modes as strings (`"0644"`).

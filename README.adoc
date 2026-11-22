@@ -536,7 +536,7 @@ which defaults to the account the playbook runs as:
 .inventory/group_vars/all/vars.yml
 [source,yaml]
 ----
-workstation_user: "{{ ansible_user_id }}"
+workstation_user: "{{ ansible_facts.user_id }}"
 ----
 
 The playbook runs unprivileged and uses sudo only per task, so that is the
@@ -841,7 +841,7 @@ If those disagree, set the daemon to the smaller number:
 [source,yaml]
 ----
 docker_daemon_mtu: 1492
-docker_daemon_mtu: "{{ ansible_default_ipv4.mtu }}"   # or follow the uplink
+docker_daemon_mtu: "{{ ansible_facts.default_ipv4.mtu }}"  # or the uplink's
 ----
 
 The role reads `/etc/docker/daemon.json`, adds the `mtu` key, and writes it

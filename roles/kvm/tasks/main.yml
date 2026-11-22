@@ -33,7 +33,7 @@
         length == 0
     fail_msg: >-
       workstation_user names an account that does not exist on
-      {{ ansible_hostname }}. Run the playbook as that account, pass
+      {{ ansible_facts.hostname }}. Run the playbook as that account, pass
       -e workstation_user=<account>, or create the account first -- this
       role never creates one.
   when: kvm_manage_groups | bool
@@ -52,4 +52,4 @@
   ansible.builtin.systemd_service:
     name: libvirtd
     enabled: true
-  when: ansible_service_mgr == "systemd"
+  when: ansible_facts.service_mgr == "systemd"

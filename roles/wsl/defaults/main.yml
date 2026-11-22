@@ -1,5 +1,5 @@
 ---
-wsl_hostname: "{{ ansible_hostname }}"
+wsl_hostname: "{{ ansible_facts.hostname }}"
 wsl_systemd_enabled: true
 # Keeping the Windows PATH out of WSL avoids surprising binary shadowing.
 # Interop itself stays on, so powershell.exe remains reachable by full path.

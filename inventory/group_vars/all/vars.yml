@@ -9,7 +9,7 @@
 # one the playbook runs as, which is the login account -- the playbook runs
 # unprivileged and uses sudo per task.  Override with
 # -e workstation_user=<account>.
-workstation_user: "{{ ansible_user_id }}"
+workstation_user: "{{ ansible_facts.user_id }}"
 
 # Windows-side configuration is opt-in and never part of a default run.
 manage_windows: false
