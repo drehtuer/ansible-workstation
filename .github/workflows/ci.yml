@@ -18,10 +18,22 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      # Full history: gitleaks scans every commit, not only the newest.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # gitleaks is not on PyPI, so it comes from the Ubuntu archive; the
+      # rest of the lint toolchain is locked in uv.lock.
+      - name: Install gitleaks
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends gitleaks
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
 
@@ -37,21 +49,25 @@ jobs:
     steps:
       # Full history, so the release tags are present and this builds every
       # version the pages workflow would publish.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
 
-      - uses: actions/setup-node@v4
+      # yamllint disable-line rule:line-length
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
 
-      - uses: ruby/setup-ruby@v1
+      # yamllint disable-line rule:line-length
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.4"
 
@@ -70,10 +86,13 @@ jobs:
       matrix:
         ubuntu: ["26.04", "24.04"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
 

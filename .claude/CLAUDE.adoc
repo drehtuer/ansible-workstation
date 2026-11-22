@@ -31,8 +31,9 @@ was deliberately decided against. Keep both current: they are the handover
 document when this repository is reopened after a break.
 
 Lint and converge are both green: `ansible-lint` (production profile),
-`yamllint`, `ruff`, and a two-pass converge on Ubuntu 24.04 and 26.04 reporting
-`changed=0`.
+`yamllint`, `ruff`, `shellcheck`, `actionlint`, `zizmor`,
+`editorconfig-checker`, a `gitleaks` scan of the whole history, and a
+two-pass converge on Ubuntu 24.04 and 26.04 reporting `changed=0`.
 
 What that does *not* cover, and what you must not claim works: the playbook has
 never run on a real WSL machine. Containers run as root with the `secrets` tag
@@ -317,6 +318,28 @@ _Documentation_.
 * `ansible.cfg` must not gain `vault_password_file`: a missing file named there
   breaks lint, syntax checks and CI on machines that hold no secrets. The
   conditional flag in `tasks.py` exists for that reason.
+* A new lint tool goes into the `dev` group when it is on PyPI, so
+  `uv.lock` pins it and Renovate raises it. `gitleaks` is the exception —
+  not on PyPI — and comes from the Ubuntu archive in the devcontainer and in
+  CI. `invoke lint` runs `invoke leaks`; keep `--redact` on it, so a found
+  secret is not printed into a CI log a second time.
+
+== Workflows
+
+`zizmor` audits `.github/workflows/` as part of `invoke lint`. Keep to what it
+checks rather than switching audits off:
+
+* Pin every action to a full commit SHA with its release as a comment,
+  `owner/action@<sha> # v1.2.3`. Renovate moves both together; a bare tag
+  can be moved under you.
+* Every `actions/checkout` sets `persist-credentials: false`. Nothing here
+  pushes with git.
+* The workflow-level `permissions:` is `contents: read`. A job that needs
+  more names it on the job — today only the Pages deploy.
+* No dependency cache in a job that publishes something.
+* `.github/zizmor.yml` disables exactly one audit, `adhoc-packages`, with
+  the reason next to it. Disabling another needs a reason written there,
+  the same as a `ruff` per-file ignore.
 
 == Python environment
 
@@ -353,6 +376,9 @@ _Documentation_.
   Three callers rely on that — a bare WSL distro, `bootstrap.sh`, and the
   devcontainer build.
 * `set -euo pipefail` at the top of every script.
+* Every tracked `*.sh` passes `shellcheck`, and every workflow `run:` block
+  passes it through `actionlint`. Fix the finding; a `# shellcheck disable=`
+  needs a comment saying why.
 * Prefer `dpkg-query` checks over blind `apt-get install` so re-runs stay quiet.
 
 == Ansible conventions
@@ -444,12 +470,17 @@ Booleans and quoting::
 Whitespace::
 Governed by `.editorconfig`: *80 columns everywhere*, spaces only, 2 for YAML
 and JSON, 4 elsewhere, LF, final newline, no trailing whitespace. The 80-column
-cap is enforced, not advisory — `ruff` and `.yamllint` both fail the build on a
-long line. `uv.lock` and `requirements.txt` are exempt as generated files.
+cap is enforced, not advisory — `ruff`, `.yamllint` and `editorconfig-checker`
+(every file that is neither Python nor YAML) all fail the build on a long
+line. `uv.lock`, `requirements.txt`, `package-lock.json` and
+`devcontainer-lock.json` are exempt as generated files. The one other
+exception is a pinned action, `uses: owner/action@<sha> # v1.2.3`, which
+cannot wrap: when it runs long, put `# yamllint disable-line
+rule:line-length` on the line above it, and on no other kind of line.
 +
-These values mirror `ruff`, `.yamllint`, `.gitattributes` and the pre-commit
-hooks — never change one side alone, or the editor and CI will fight over every
-save.
+These values mirror `ruff`, `.yamllint`, `.gitattributes`,
+`.editorconfig-checker.json` and the pre-commit hooks — never change one side
+alone, or the editor and CI will fight over every save.
 +
 When a line will not fit: wrap shell strings across arguments, use a folded
 YAML scalar (`>-`) with continuation lines at the *same* indent so it folds to

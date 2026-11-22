@@ -2,8 +2,8 @@
 #
 # A container cannot provision the WSL host it runs in.  This image exists for
 # the tooling that is NOT pip-installable -- asciidoctor (Ruby), Node.js for
-# the Antora site build (a devcontainer feature) and the GitHub CLI -- plus a
-# docker socket for the containerised converge tests.
+# the Antora site build (a devcontainer feature), gitleaks and the GitHub
+# CLI -- plus a docker socket for the containerised converge tests.
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -17,6 +17,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ruby-full \
     && gem install --no-document asciidoctor -v 2.0.23 \
     && gem install --no-document kramdown-asciidoc -v 2.1.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# gitleaks for `invoke leaks`, part of `invoke lint`.  It is not on PyPI,
+# so unlike the rest of the lint toolchain it comes from the archive.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gitleaks \
     && rm -rf /var/lib/apt/lists/*
 
 # GitHub CLI from the official apt repository.

@@ -19,10 +19,10 @@ name: pages
     types: [published]
   workflow_dispatch:
 
+# Each job is granted only what it uses; nothing is granted workflow-wide
+# beyond reading the repository.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Never cancel a running deployment; let it finish and queue the next one.
 concurrency:
@@ -32,27 +32,37 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # configure-pages only reads the Pages settings.
+    permissions:
+      contents: read
+      pages: read
     steps:
       # Always build from main, whichever event triggered this: a release
       # checks out its tag, and the site would then publish that tag's
       # content as the main version.  fetch-depth 0 brings the tags along,
       # which is where the older versions come from.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
+      # No dependency caches in the job that publishes: a cache written by
+      # any other workflow run could otherwise reach the released site.
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          enable-cache: true
+          enable-cache: false
 
-      - uses: actions/setup-node@v4
+      # yamllint disable-line rule:line-length
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-          cache: npm
+          package-manager-cache: false
 
-      - uses: ruby/setup-ruby@v1
+      # yamllint disable-line rule:line-length
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.4"
 
@@ -61,17 +71,23 @@ jobs:
 
       - run: uv run invoke site
 
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v3
+      # yamllint disable-line rule:line-length
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      # yamllint disable-line rule:line-length
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: build/site
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        # yamllint disable-line rule:line-length
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

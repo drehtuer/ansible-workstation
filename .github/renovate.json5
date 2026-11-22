@@ -8,6 +8,10 @@
     // chore(deps): update ...
     ':semanticCommits',
     ':semanticCommitTypeAll(chore)',
+    // Actions are referenced by commit SHA with the release as a comment,
+    // which zizmor requires.  Renovate pins any action added by tag and
+    // moves SHA and comment together.
+    'helpers:pinGitHubActionDigests',
   ],
 
   // A release has to be two weeks old before Renovate proposes it, so a

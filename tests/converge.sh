@@ -32,8 +32,7 @@ python3 -m venv /venv
 converge() {
     /venv/bin/ansible-playbook playbooks/site.yml \
         --skip-tags secrets \
-        -e @tests/vars.ci.yml \
-        "$@"
+        -e @tests/vars.ci.yml
 }
 
 echo "=== converge 1 ==="
