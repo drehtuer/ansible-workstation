@@ -1,12 +1,44 @@
 ---
-# git itself, git-lfs and the two forge CLIs.  All come from the Ubuntu
-# archive, so no extra apt repository is needed; they trail upstream by a
-# release or two.
+# git itself, git-lfs and the two forge CLIs.  git, git-lfs and glab come
+# from the Ubuntu archive; gh comes from GitHub's own apt repository.
 git_packages:
   - gh
   - git
   - git-lfs
   - glab
+
+# gh is in the archive, but frozen at the version each release shipped with:
+# 2.45.0 on 24.04 and 2.46.0 on 26.04, both from early 2024, patched for
+# security and nothing else.  gh is a client for a service that keeps
+# changing, and the commands for what GitHub adds arrive only in new gh
+# releases -- `gh attestation`, for one, needs 2.49.  GitHub's repository
+# carries the current release (2.105.0 when this was written), and gh never
+# updates itself, so the `safe` upgrade in the base role keeps it current.
+# The devcontainer installs gh from the same repository.
+git_gh_repo_uri: https://cli.github.com/packages
+git_gh_repo_suite: stable
+git_gh_keyring: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+
+# The signing keyring ships with the role, in files/, as GitHub serves it --
+# binary, not armored.  It holds two keys: the original one, expired in
+# September 2026, and its successor, which signs the repository today.
+# Refresh with:
+#
+#   curl -fsSL \
+#     https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+#     -o roles/git/files/githubcli-archive-keyring.gpg
+#
+# and check the fingerprints before committing:
+#
+#   gpg --show-keys roles/git/files/githubcli-archive-keyring.gpg
+#   # 7F38 BBB5 9D06 4DBC B3D8  4D72 5612 B364 6231 3325  (signing)
+#   # 2C61 0620 1985 B60E 6C7A  C873 23F3 D4EA 7571 6059  (expired)
+git_gh_key_file: githubcli-archive-keyring.gpg
+
+# The archive's gh stays a candidate.  Pinning by origin means apt takes
+# gh from GitHub's repository whatever the version numbers say; 600 beats
+# the archive's default 500.
+git_gh_pin_priority: 600
 
 # What `git lfs install` writes to ~/.gitconfig, set key by key so a re-run
 # reports no change.  Applied only while git-lfs is in git_packages.

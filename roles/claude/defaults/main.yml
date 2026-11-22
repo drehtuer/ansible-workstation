@@ -1,41 +1,27 @@
 ---
-# Claude Code, from Anthropic's own apt repository.
+# Claude Code, from Anthropic's native installer.
 #
-# The Ubuntu archive does not ship it at all, so there is no archive version
-# to prefer.  Of the upstream channels, apt is the one that fits here:
+# The Ubuntu archive does not ship it.  Anthropic offers three channels:
+# the native installer, an apt repository, and an npm package.  The native
+# installer is the one Anthropic recommends, and the one Claude Code's own
+# updater and `claude doctor` expect: a self-contained binary in the login
+# user's home, under ~/.local/share/claude, with a launcher at
+# ~/.local/bin/claude, which updates itself in the background on the
+# channel it was installed from.  npm stays out for the reason in the
+# nodejs role: it would be a root-owned global install.
 #
-#   * the native installer (curl | bash) is not idempotent, its Linux
-#     binaries are not code-signed, and it updates itself behind apt's back
-#   * the npm package updates itself outside any pin, and Anthropic advises
-#     against the root-owned global install the nodejs role would make
-#
-# The apt package is signed by the repository key, does not update itself,
-# and is kept current by the `safe` upgrade in the base role like any other
-# package.
+# The installer is run once, as the user the playbook runs as -- never with
+# become, which the installer refuses -- and only while the launcher is
+# missing.  After that, keeping Claude Code current is its own updater's
+# job, not the playbook's: a re-run finds the launcher and changes nothing.
+# The installer checks the binary it downloads against the SHA-256 in the
+# release manifest before running it.
 #
 # Two channels exist.  `stable` serves a release about a week old and skips
 # ones with major regressions; `latest` serves every release as it ships.
-# The channel names both the repository path and its suite.  Switching from
-# latest to stable does not downgrade: apt keeps the newer installed version
-# until stable overtakes it.
+# The role passes the channel only on the first install; after that it is
+# Claude Code's own setting, `autoUpdatesChannel`.
 claude_channel: stable
-claude_repo_uri: >-
-  https://downloads.claude.ai/claude-code/apt/{{ claude_channel }}
-claude_repo_suite: "{{ claude_channel }}"
-claude_keyring: /etc/apt/keyrings/claude-code.asc
-
-# The signing key ships with the role, in files/.  It is public data, and
-# having it here keeps provisioning independent of downloads.claude.ai
-# answering before apt needs it.  Refresh with:
-#
-#   curl -fsSL https://downloads.claude.ai/keys/claude-code.asc \
-#     -o roles/claude/files/claude-code.asc
-#
-# and check the fingerprint before committing:
-#
-#   gpg --show-keys roles/claude/files/claude-code.asc
-#   # 31DD DE24 DDFA B679 F42D  7BD2 BAA9 29FF 1A7E CACE
-claude_key_file: claude-code.asc
-
-claude_packages:
-  - claude-code
+claude_installer_url: https://claude.ai/install.sh
+claude_launcher: "{{ ansible_env.HOME }}/.local/bin/claude"
+claude_download_dir: "{{ ansible_env.HOME }}/.claude/downloads"

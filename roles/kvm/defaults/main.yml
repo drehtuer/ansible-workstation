@@ -19,6 +19,7 @@ kvm_packages:
   - qemu-system-x86
   - qemu-utils
   - virtinst
+  - virt-top
 
 # Membership in kvm opens /dev/kvm, membership in libvirt the system libvirtd
 # socket.  libvirt is equivalent to root, like docker.  The account comes from

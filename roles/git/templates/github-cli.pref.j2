@@ -1,0 +1,7 @@
+# Managed by ansible-workstation, roles/git.
+#
+# The archive also ships a gh, and apt would otherwise pick whichever
+# version number is higher.  Pinning by origin settles it by source instead.
+Package: gh
+Pin: origin cli.github.com
+Pin-Priority: {{ git_gh_pin_priority }}
