@@ -96,6 +96,5 @@ jobs:
         with:
           enable-cache: true
 
-      # No vault password exists here, by design.  Tasks tagged 'secrets' are
-      # skipped and tests/vars.ci.yml supplies obviously-fake values instead.
+      # The whole playbook, twice; the second pass must change nothing.
       - run: uv run invoke converge --ubuntu ${{ matrix.ubuntu }}

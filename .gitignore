@@ -8,11 +8,7 @@ __pycache__/
 .ansible/
 *.retry
 
-# Vault passwords must never live inside the repository
-vault_pass*
-*.vault_pass
-.vault_password*
-*.decrypted.yml
+# Local environment files
 .env
 
 # Node (Antora); package-lock.json is committed, node_modules is not

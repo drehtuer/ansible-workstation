@@ -18,6 +18,11 @@ the default, and 24.04 — with the user's tools, shell, editors and
 language toolchains. An opt-in second part configures the Windows host
 through WSL interop.
 
+It is a *blueprint*: what every such machine gets, and nothing personal.
+Git identity, keys, shell profiles and every other personal setting live in
+a separate dotfiles repository, encrypted there, which chezmoi applies after
+the playbook. A fresh machine needs no secret to run it.
+
 It is *not* server configuration management; that lives in a separate `ansible`
 repository. Do not add services, daemons, systemd units that listen on ports,
 reverse proxies, databases, or monitoring. If a task would make the machine
@@ -36,9 +41,9 @@ Lint and converge are both green: `ansible-lint` (production profile),
 two-pass converge on Ubuntu 24.04 and 26.04 reporting `changed=0`.
 
 What that does *not* cover, and what you must not claim works: the playbook has
-never run on a real WSL machine. Containers run as root with the `secrets` tag
-skipped, so `become` against a real sudo prompt, the vault path end to end, and
-all of `roles/windows` remain untested.
+never run to the end on a real WSL machine. Containers run as root, so
+`become` against a real sudo prompt, group membership for an account that is
+not root, and all of `roles/windows` remain untested.
 
 == Decisions already made
 
@@ -61,12 +66,16 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | Work/private separated by *forking*, not by profiles or branches
 | README, _Work and private separation_
 
-| One vault identity and one password file at
-  `~/.config/ansible/vault_pass`; the shared vault plus one per machine
-| README, _Secrets and Ansible Vault_
+| No Ansible Vault and nothing personal, not even encrypted: personal
+  settings belong to the dotfiles repository that chezmoi applies
+| README, _Nothing personal_ and _Roadmap / Deferred_
 
-| The repository is *public on purpose* — it forces the no-plaintext rule
-| README, _This repository is public, on purpose_
+| The repository is *public on purpose* — it forces the nothing-personal rule
+| README, _Nothing personal_
+
+| The `git` role writes its defaults to `/etc/gitconfig`, never
+  `~/.gitconfig`, which belongs to the dotfiles repository
+| README, _Nothing personal_
 
 | No dotfiles role: dotfiles, `keychain` and SSH key storage belong to a
   separate dotfiles repository. This repository installs chezmoi for it and
@@ -157,60 +166,48 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
 | `docker` and `fonts` are roles of their own, not additions to `base`
 | README, _What gets installed_
 
-| The login account is vault data, in that machine's own `host_vars` vault —
-  never derived from `ansible_user_id`
-| README, _Values that differ per machine_
+| The account that joins `docker`, `kvm` and `libvirt` is the one running the
+  playbook: `workstation_user` defaults to `ansible_user_id`, overridable
+  with `-e`
+| README, _The account that joins groups_
 |===
 
 == Non-negotiable rules
 
-=== Secrets
+=== Nothing personal
 
 [IMPORTANT]
 ====
 This repository is *public*: {repo-url}
 
-Treat every plaintext file here as world-readable, because it is. GitHub is
-untrusted infrastructure. The public setting is a deliberate control — it makes
-"nothing sensitive in plaintext" unambiguous — so do not propose making it
-private as a way to relax any rule below.
+Treat every file here as world-readable, because it is. GitHub is untrusted
+infrastructure. The public setting is a deliberate control — it makes
+"nothing personal here" unambiguous — so do not propose making it private as
+a way to relax any rule below.
 ====
 
-. Never print, echo, `cat`, or otherwise reveal the vault password — not in a
-  command, not in a tool result, not in a commit, not in a comment.
-. Never write the vault password into a file inside the repository, into
-  `ansible.cfg` as a literal, into a shell command, or into CI configuration.
-  The password file lives at `~/.config/ansible/vault_pass` and nowhere else.
-. Never decrypt the vault to disk. Use `invoke vault-edit`, which edits in
-  place.
-  If a decrypted copy is unavoidable, it goes outside the repository and is
-  deleted immediately.
-. Never commit plaintext where a `vault_*` variable belongs. Real e-mail
-  addresses, tokens, account names, private/internal URLs, SSH keys and license
-  keys are secrets even when they look harmless.
-. Any task that consumes a secret sets `no_log: true`, carries the `secrets`
-  tag, and writes files with `mode: "0600"`.
-. Do not run playbooks with `-vvv` when secrets are in scope; verbose output
-  expands variable values.
-. When adding a secret, add *both* halves: `vault_<name>` in `vault.yml` and the
-  plain reference in `inventory/group_vars/all/vars.yml`. Add the placeholder to
-  `vault.yml.example` too, or the next `vault-init` will be incomplete.
-. The login account name is one of those secrets. It lives in
-  `inventory/host_vars/<hostname>/vault.yml` as `vault_workstation_user` and
-  is read through `workstation_user`; never fall back to `ansible_user_id`. A
-  machine without one must fail with a message, not be guessed at — and a task
-  that acts on an account verifies it exists first, because
-  `ansible.builtin.user` happily creates one.
-. A per-host vault is a vault: encrypted with the same password, committed
-  encrypted, and covered by `scripts/check_vault_encrypted.py`. Machine names
-  reach this repository only as those directory names — do not write them
-  anywhere else.
+. Nothing personal or secret is committed, not even encrypted: e-mail
+  addresses, account names, tokens, private/internal URLs, SSH and signing
+  keys, license keys. They belong to the dotfiles repository. Do not
+  reintroduce Ansible Vault for them.
+. No role writes a file the dotfiles repository owns — `~/.gitconfig` above
+  all. System-wide defaults go into the system-wide file (`/etc/gitconfig`),
+  where a user's own setting still overrides them.
+. The account a role acts on is `workstation_user`, by default the one that
+  runs the playbook. Never write an account name into the repository, and
+  verify an account exists before acting on it: `ansible.builtin.user`
+  happily creates one.
+. Machine names do not reach this repository. `inventory/hosts.py` reports
+  the real hostname, so a fork may add `inventory/host_vars/<hostname>/`;
+  upstream has none.
+. Do not run playbooks with `-vvv` in shared logs; verbose output expands
+  variable values.
 
 === Work / private separation
 
 * Separation is achieved by forking this repository, not by profiles inside it.
-  Do not add `group_vars/work/`, profile groups in the inventory, or a second
-  vault identity.
+  Do not add `group_vars/work/` or profile groups in the inventory. A fork
+  that needs secrets adds its own vault there, not here.
 * Never commit a work-specific value here. This repository is the public
   upstream; changes flow upstream → fork, never back. Anything internal is
   disqualified from this repository by the fact that it is public.
@@ -313,17 +310,9 @@ _Documentation_.
 
 * `tasks.py` (Invoke) is the only entry point for checks. Adding a check means
   adding a task, not a shell snippet in CI or in the README.
-* `invoke converge` mounts the repository *read-only*, copies it aside in the
-  container and deletes every `vault.yml` from the copy. CI holds no vault
-  password, and an encrypted file under `group_vars/` or `host_vars/` fails
-  the run while variables load — before `--skip-tags secrets` could matter.
-  Keep that strip step, or the first machine to commit a vault breaks CI.
-* The task runner never reads the vault password — it passes the *path* via
-  `--vault-password-file`, and only when that file exists. Preserve that
-  property.
-* `ansible.cfg` must not gain `vault_password_file`: a missing file named there
-  breaks lint, syntax checks and CI on machines that hold no secrets. The
-  conditional flag in `tasks.py` exists for that reason.
+* `invoke converge` mounts the repository *read-only* and copies it aside in
+  the container, so a converge can never write into the checkout. It runs
+  the whole playbook, nothing skipped: there is no secret to withhold.
 * A new lint tool goes into the `dev` group when it is on PyPI, so
   `uv.lock` pins it and Renovate raises it. `gitleaks` is the exception —
   not on PyPI — and comes from the Ubuntu archive in the devcontainer and in
@@ -558,6 +547,6 @@ If a check cannot be run, say so explicitly rather than implying it passed.
 
 * Branch off `main`; do not commit or push unless asked.
 * Conventional-commit style subjects: `feat(shell): add starship prompt`.
-* Before committing, verify the vault is not staged in plaintext and no
-  password-shaped file is included. `pre-commit` enforces this; do not bypass it
-  with `--no-verify`.
+* Before committing, check that nothing personal is staged.
+  `detect-private-key` (pre-commit) and `gitleaks` (`invoke lint`) back that
+  up; do not bypass the hooks with `--no-verify`.

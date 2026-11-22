@@ -2,12 +2,6 @@
 repos:
   - repo: local
     hooks:
-      - id: vault-encrypted
-        name: vault files are encrypted, no password files staged
-        entry: python3 scripts/check_vault_encrypted.py
-        language: system
-        pass_filenames: true
-
       # ruff and yamllint run from the project's .venv, so the hooks use the
       # versions locked in uv.lock -- the same ones `invoke lint` and CI use.
       # A hook repository would pin a second copy that drifts from the first.

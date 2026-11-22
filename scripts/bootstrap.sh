@@ -13,6 +13,8 @@ log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 
 # Step 1: uv and its system prerequisites.  Standalone on purpose, so it can
 # also be run by hand on a clean Ubuntu and during the devcontainer build.
+# PATH as the calling shell has it, before this script extends its own.
+caller_path="$PATH"
 ./scripts/install-uv.sh
 export PATH="${UV_INSTALL_DIR:-$HOME/.local/bin}:$PATH"
 
@@ -41,22 +43,29 @@ else
     log "npm not found - skipping Antora; 'invoke site' needs it"
 fi
 
+# On a fresh distro ~/.local/bin did not exist when the login shell started,
+# so Ubuntu's ~/.profile left it off PATH; uv is there, but the calling
+# shell cannot see it until it is started again.
+if ! (PATH="$caller_path"; hash -r; command -v uv) >/dev/null 2>&1; then
+    cat <<'EOF'
+
+uv is installed, but not yet on this shell's PATH.  Start a new login shell
+first, or reopen the distro:
+
+  exec bash -l
+EOF
+fi
+
 cat <<'EOF'
 
 Done.  Next steps:
 
+  uv run invoke apply             # provision this machine (asks for sudo)
+  chezmoi init --apply <repo>     # then your personal settings: dotfiles,
+                                  # git identity, keys
+
+Later on:
+
+  uv run invoke check             # dry run; zero changes on a converged host
   uv run invoke --list            # every available task
-  uv run invoke lint syntax       # the checks CI runs
-  uv run invoke check             # dry run against this machine
-  uv run invoke apply             # provision for real
-
-If this machine needs secrets, create the vault password file OUTSIDE the
-repository and then initialise the vault:
-
-  mkdir -p ~/.config/ansible
-  install -m 0600 /dev/null ~/.config/ansible/vault_pass
-  $EDITOR ~/.config/ansible/vault_pass
-  uv run invoke vault-init
-
-Never write the password with `echo` - it would land in your shell history.
 EOF

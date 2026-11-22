@@ -40,12 +40,19 @@ git_gh_key_file: githubcli-archive-keyring.gpg
 # the archive's default 500.
 git_gh_pin_priority: 600
 
-# What `git lfs install` writes to ~/.gitconfig, set key by key so a re-run
-# reports no change.  Applied only while git-lfs is in git_packages.
+# What `git lfs install --system` writes to /etc/gitconfig.  Applied only
+# while git-lfs is in git_packages.
 git_lfs_config:
   - {name: "filter.lfs.clean", value: "git-lfs clean -- %f"}
   - {name: "filter.lfs.smudge", value: "git-lfs smudge -- %f"}
   - {name: "filter.lfs.process", value: "git-lfs filter-process"}
   - {name: "filter.lfs.required", value: "true"}
+
+# Defaults for every account on the machine, in /etc/gitconfig.  Identity
+# and anything else personal belong in ~/.gitconfig, which the dotfiles
+# repository manages; a value set there wins over one set here.
 git_default_branch: main
 git_editor: nvim
+git_system_config:
+  - {name: "init.defaultBranch", value: "{{ git_default_branch }}"}
+  - {name: "core.editor", value: "{{ git_editor }}"}
