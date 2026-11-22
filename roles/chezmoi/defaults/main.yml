@@ -10,14 +10,12 @@
 # undoes.  The `curl | sh` installer would do neither.
 #
 # The base role's apt upgrade cannot see a new release, since there is no
-# repository behind it: raise the version here, together with both
-# checksums, from the release's checksums file:
-#
-#   curl -fsSL https://github.com/twpayne/chezmoi/releases/download/\
-#   v<version>/chezmoi_<version>_checksums.txt | grep '_linux_.*\.deb$'
-#
-# That file is signed with cosign (chezmoi_cosign.pub in the same release)
-# for anyone who wants to verify it before copying the numbers here.
+# repository behind it.  Renovate raises chezmoi_version (the comment right
+# above it is what it looks for); `uv run invoke checksums` then rewrites
+# both checksums from the release's checksums file.  That file is signed
+# with cosign (chezmoi_cosign.pub in the same release) for anyone who wants
+# to verify it first.
+# renovate: datasource=github-releases depName=twpayne/chezmoi
 chezmoi_version: "2.74.1"
 chezmoi_url: https://github.com/twpayne/chezmoi/releases/download
 chezmoi_sha256:

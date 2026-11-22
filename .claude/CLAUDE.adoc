@@ -141,6 +141,10 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
   up on GitHub
 | README, _Roadmap / Deferred_
 
+| Renovate keeps every pin current: 14-day minimum release age, weekly,
+  grouped; it replaces Dependabot version updates
+| README, _Keeping pins current_
+
 | Hyper-V switch configuration is out of scope
 | README, _Roadmap / Deferred_
 
@@ -325,7 +329,14 @@ _Documentation_.
   `invoke` belong to the `dev` dependency group.
 * Galaxy collections belong in `requirements.yml`, never in `pyproject.toml`.
 * After changing dependencies: run `invoke lock` and commit both `uv.lock` and
-  `requirements.txt`.
+  `requirements.txt`. `invoke lint` runs `lock-check`, which fails while
+  the two disagree — the case Renovate leaves behind when it bumps a runtime
+  dependency.
+* Every pinned version must be visible to Renovate: a manager that reads it
+  natively, a `# renovate: datasource=… depName=…` comment on the line
+  above, or the `nodejs_global_packages` shape. A pin it cannot see stops
+  being updated without anyone noticing. A pin that also carries a SHA-256
+  needs `invoke checksums` to know how to refresh it.
 * Ansible tool configuration is not consolidated into `pyproject.toml` —
   `ansible-lint` reads `.ansible-lint`, `yamllint` reads `.yamllint`. Leave them
   there. Only `ruff` is configured in `pyproject.toml`.
