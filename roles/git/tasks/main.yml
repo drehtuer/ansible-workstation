@@ -1,9 +1,50 @@
 ---
+- name: Install the deb822 apt source support
+  become: true
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Ensure the apt keyring directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ git_gh_keyring | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Install the GitHub CLI signing keyring
+  become: true
+  ansible.builtin.copy:
+    src: "{{ git_gh_key_file }}"
+    dest: "{{ git_gh_keyring }}"
+    mode: "0644"
+
+- name: Add the GitHub CLI repository
+  become: true
+  ansible.builtin.deb822_repository:
+    name: github-cli
+    types: [deb]
+    uris: "{{ git_gh_repo_uri }}"
+    suites: "{{ git_gh_repo_suite }}"
+    components: [main]
+    signed_by: "{{ git_gh_keyring }}"
+    state: present
+
+- name: Prefer GitHub's repository over the archive for gh
+  become: true
+  ansible.builtin.template:
+    src: github-cli.pref.j2
+    dest: /etc/apt/preferences.d/github-cli.pref
+    mode: "0644"
+
+# No cache_valid_time: the source above may have just been added, and a
+# merely recent cache would not know about it.
 - name: Install git, git-lfs and the forge CLIs
   become: true
   ansible.builtin.apt:
     name: "{{ git_packages }}"
     state: present
+    update_cache: true
 
 # The global half of `git lfs install`, without a command that reports
 # changed on every run.  Not secret, so it runs in CI as well.

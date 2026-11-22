@@ -103,9 +103,14 @@ Do not relitigate these. Each was considered and settled; the reasoning lives in
   that origin by an apt preference
 | README, _Node.js_
 
-| Claude Code comes from Anthropic's apt repository, on a channel set by
-  `claude_channel` — never the `curl \| bash` installer, never npm
+| Claude Code comes from Anthropic's native installer, run once as the
+  login user on the channel set by `claude_channel` and then left to update
+  itself — not Anthropic's apt repository, never npm
 | README, _Claude Code_
+
+| `gh` comes from GitHub's apt repository, pinned by origin — the archive's
+  is frozen at early 2024
+| README, _What gets installed_
 
 | Firefox comes from Mozilla's apt repository, pinned by origin at 1000 —
   never the archive's snap stub
@@ -295,9 +300,10 @@ _Documentation_.
   group membership) and `fonts` (downloaded assets and a fontconfig rule) are
   the settled examples of concerns that earn their own role, and `nodejs` is
   a third: an apt source plus a version policy, which is more than the plain
-  package list `python` is. `claude` follows the same reasoning: an apt
-  source plus a release channel. A package that only needs installing belongs
-  in the role that owns its purpose.
+  package list `python` is. `claude` earns its own as well: a per-user
+  installer that the role runs once, then leaves to Claude Code's own
+  updater. A package that only needs installing belongs in the role that
+  owns its purpose.
 * Do not introduce a new package manager, dotfile manager, or abstraction layer
   without asking first.
 * Do not add a CI-only command. If CI runs it, it is an `invoke` task in
@@ -418,8 +424,8 @@ tooling in `docker`, `xxd` in `editor`, ping and the capture tools in
 `network`. `base` is for what every workstation needs regardless of
 what is installed on top.
 +
-Prefer the Ubuntu archive — `gh` and `glab` are in it, and so is most of what
-a workstation needs. Do not contort around it, though: when the archive's
+Prefer the Ubuntu archive — `glab` is in it, and so is most of what a
+workstation needs. Do not contort around it, though: when the archive's
 version cannot do the job, add the upstream source, see
 _Third-party apt sources_.
 
@@ -451,7 +457,9 @@ A command-line tool that exists only as an npm package goes into
 and never `latest`. It is installed with `community.general.npm`, never
 with `npm` in a `command` or `shell` task. Nothing else in any role may use
 npm, and a tool that has an apt package or a signed apt repository takes
-that instead: Claude Code is on npm too, and comes from apt.
+that instead. Claude Code is on npm too, and is the one exception to the
+apt half: it comes from Anthropic's native installer, see _Claude Code_ in
+the README.
 
 Alternatives::
 When a package should take over a well-known command name, register an

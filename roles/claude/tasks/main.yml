@@ -1,40 +1,42 @@
 ---
-- name: Install the deb822 apt source support
+# The installer downloads with curl or wget; base installs both, but
+# `--tags claude` should work on its own.
+- name: Install the downloader the Claude Code installer needs
   become: true
   ansible.builtin.apt:
-    name: python3-debian
+    name: curl
     state: present
 
-- name: Ensure the apt keyring directory exists
-  become: true
-  ansible.builtin.file:
-    path: "{{ claude_keyring | dirname }}"
-    state: directory
-    mode: "0755"
+- name: Look for the Claude Code launcher
+  ansible.builtin.stat:
+    path: "{{ claude_launcher }}"
+  register: claude_installed
 
-- name: Install the Claude Code signing key
-  become: true
-  ansible.builtin.copy:
-    src: "{{ claude_key_file }}"
-    dest: "{{ claude_keyring }}"
-    mode: "0644"
+# Not become: the installer works in $HOME and refuses to run under sudo.
+- name: Install Claude Code with the native installer
+  when: not claude_installed.stat.exists
+  block:
+    - name: Create the Claude Code download directory
+      ansible.builtin.file:
+        path: "{{ claude_download_dir }}"
+        state: directory
+        mode: "0700"
 
-- name: Add the Claude Code repository
-  become: true
-  ansible.builtin.deb822_repository:
-    name: claude-code
-    types: [deb]
-    uris: "{{ claude_repo_uri }}"
-    suites: "{{ claude_repo_suite }}"
-    components: [main]
-    signed_by: "{{ claude_keyring }}"
-    state: present
+    - name: Download the Claude Code installer
+      ansible.builtin.get_url:
+        url: "{{ claude_installer_url }}"
+        dest: "{{ claude_download_dir }}/install.sh"
+        mode: "0700"
 
-# No cache_valid_time: the source above may have just been added or
-# repointed to the other channel, and a merely recent cache would not know.
-- name: Install Claude Code
-  become: true
-  ansible.builtin.apt:
-    name: "{{ claude_packages }}"
-    state: present
-    update_cache: true
+    - name: Run the Claude Code installer, channel {{ claude_channel }}
+      ansible.builtin.command:
+        argv:
+          - bash
+          - "{{ claude_download_dir }}/install.sh"
+          - "{{ claude_channel }}"
+        creates: "{{ claude_launcher }}"
+
+    - name: Remove the Claude Code installer
+      ansible.builtin.file:
+        path: "{{ claude_download_dir }}/install.sh"
+        state: absent

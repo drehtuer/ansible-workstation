@@ -138,8 +138,8 @@ Scaffolding is complete and self-consistent; the roles are deliberately thin.
   `main` as its only version.
 * `invoke converge` passes on *both* Ubuntu 24.04 and 26.04: the second pass
   reports `changed=0`, so the roles are observably idempotent. That includes
-  `claude`, which adds Anthropic's repository and installs `claude-code` on
-  the first pass and reports `ok` on the second.
+  `claude`, which runs Anthropic's installer on the first pass and finds the
+  launcher on the second, and `git`, which adds GitHub's CLI repository.
 * The `ansible-core` 2.21 lock works on both releases' own Python: `invoke
   lint` and `invoke syntax` pass on 24.04's 3.12 and on 26.04's 3.14.
 * The toolset arrives, checked inside a converged container: every requested
@@ -618,8 +618,8 @@ visible from where it sits.
   Windows clipboard, through WSLg), and the login shell
 
 | `git`
-| `git` and `git-lfs`, the forge CLIs `gh` and `glab`, and the global git
-  configuration, including the LFS filters
+| `git` and `git-lfs`, the forge CLIs `gh` (from GitHub's apt repository)
+  and `glab`, and the global git configuration, including the LFS filters
 
 | `editor`
 | `neovim` from the upstream PPA, the `vi` / `vim` alternatives, `xxd`, and
@@ -636,7 +636,7 @@ visible from where it sits.
   the global npm tools: OpenSpec
 
 | `claude`
-| Claude Code, from Anthropic's apt repository, on the `stable` channel
+| Claude Code, from Anthropic's native installer, on the `stable` channel
 
 | `network`
 | `bind9-dnsutils`, `iputils-ping`, `net-tools`, `socat`, `tshark`,
@@ -653,8 +653,8 @@ visible from where it sits.
 | Firefox, from Mozilla's apt repository
 
 | `kvm`
-| QEMU, libvirt, `virt-install`, OVMF and `kvm-ok`, and membership in the
-  `kvm` and `libvirt` groups
+| QEMU, libvirt, `virt-install`, `virt-top`, OVMF and `kvm-ok`, and
+  membership in the `kvm` and `libvirt` groups
 |===
 
 Node is the clearest case for that second source: 24.04's archive still
@@ -664,13 +664,20 @@ The Ubuntu archive is the *default* source, not a vow. It trails upstream by
 a release or two, which is unremarkable for `jq` and fatal for a runtime that
 has gone end-of-life — so when the archive's version cannot do the job, this
 repository takes the upstream source instead — or when the archive has no
-version at all. Today that means the neovim PPA, NodeSource, Anthropic's
-Claude Code repository and Mozilla's; the list is expected to grow.
+version at all. Today that means the neovim PPA, NodeSource, GitHub's CLI
+repository and Mozilla's; the list is expected to grow.
+
+`gh` is the case of an archive version that is maintained but frozen: 24.04
+ships 2.45.0 and 26.04 2.46.0, both from early 2024, patched for security and
+nothing else. `gh` is a client for a service that keeps changing, and the
+commands for what GitHub adds arrive only in new releases — `gh attestation`
+needs 2.49. GitHub's repository carries the current release, and an apt
+preference pins `gh` to it by origin.
 
 What it is not is free. Each source is a keyring to keep current, a party
 trusted to run code on this machine, and one more thing that can go missing
-on a release upgrade. So prefer the archive — `gh` and `glab` are in it, and
-so is most of what a workstation needs — and when you do add a source, add it
+on a release upgrade. So prefer the archive — `glab` is in it, and so is
+most of what a workstation needs — and when you do add a source, add it
 the same way every time: see <<apt-sources>>.
 
 [#apt-sources]
@@ -803,29 +810,35 @@ site's Antora, which is pinned in `package.json` and installed by
 [#claude]
 === Claude Code
 
-The archive does not carry Claude Code, so it comes from Anthropic's own apt
-repository at `downloads.claude.ai`, added the same way as every other source
-here, with the key committed under `roles/claude/files/`.
+The archive does not carry Claude Code. Anthropic offers it three ways — a
+native installer, an apt repository and an npm package — and the role uses
+the installer, the one Anthropic recommends and the one Claude Code's own
+updater and `claude doctor` expect.
 
 [source,yaml]
 ----
 claude_channel: stable   # <1>
 ----
 <1> `stable` serves a release about a week old and skips ones with major
-    regressions; `latest` serves every release as it ships. The channel
-    names both the repository path and its suite.
+    regressions; `latest` serves every release as it ships.
 
-Anthropic also offers a native installer and an npm package. Neither fits:
+The installer puts a self-contained binary under `~/.local/share/claude` and
+a launcher at `~/.local/bin/claude`, and checks the binary it downloads
+against the SHA-256 in Anthropic's release manifest before running it. From
+then on Claude Code updates itself in the background, on the channel it was
+installed from.
 
-* the installer is `curl | bash`, which is not idempotent, and its Linux
-  binaries are not code-signed — the apt repository is
-* the npm package updates itself, and Anthropic advises against the
-  root-owned global install that <<npm-tools,the nodejs role>> makes
-* both update themselves outside apt; the apt package does not, so the `safe`
-  upgrade in `base` keeps it current like everything else
+The role runs the installer *once*, as the user the playbook runs as, and
+only while `~/.local/bin/claude` is missing. It never uses `become`: the
+installer works in `$HOME` and refuses to run under `sudo`. A re-run finds
+the launcher and changes nothing, so keeping Claude Code current is its own
+updater's job, not the playbook's. That also means `claude_channel` counts
+only on the first install; afterwards the channel is Claude Code's own
+setting, `autoUpdatesChannel`.
 
-Switching `latest` back to `stable` does not downgrade: apt keeps the newer
-version installed until `stable` overtakes it.
+The npm package stays out: it would be a root-owned global install, which
+Anthropic advises against, and <<npm-tools,the nodejs role>> installs nothing
+else that way either.
 
 The role installs the program, nothing more. Logging in and
 `~/.claude/settings.json` stay with the user.
@@ -956,8 +969,8 @@ current Windows releases have by default.
 
 QEMU and libvirt come from the archive; `qemu-kvm` is only a virtual package
 on both releases, so the role names `qemu-system-x86`. `virt-install` creates
-VMs from the command line, OVMF lets them boot UEFI, and `kvm-ok` says
-whether acceleration is available.
+VMs from the command line, `virt-top` shows what the running ones use, OVMF
+lets them boot UEFI, and `kvm-ok` says whether acceleration is available.
 
 Inside WSL, `/dev/kvm` exists only when the VM has nested virtualization:
 Windows 11, and `nestedVirtualization=true` in `.wslconfig`, which the
@@ -1250,9 +1263,10 @@ CI runs *those same tasks*. There is no CI-only command.
 [CAUTION]
 ====
 `invoke converge` downloads from the internet *inside a container*: the Nerd
-Font from GitHub, node from `deb.nodesource.com`, Claude Code from
-`downloads.claude.ai` and Firefox from `packages.mozilla.org`. If those hang
-while the Ubuntu archive works fine, check the MTU rather than the roles:
+Font from GitHub, node from `deb.nodesource.com`, `gh` from
+`cli.github.com`, Claude Code from `claude.ai` and `downloads.claude.ai`, and
+Firefox from `packages.mozilla.org`. If those hang while the Ubuntu archive
+works fine, check the MTU rather than the roles:
 
 [source,bash]
 ----

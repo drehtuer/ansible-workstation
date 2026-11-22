@@ -11,3 +11,6 @@ inventory/host_vars/*/vault.yml diff=ansible-vault merge=binary
 *.asc  text eol=lf
 *.json text eol=lf
 *.hbs  text eol=lf
+
+# Apt signing keyrings that upstream serves binary, not armored.
+*.gpg  binary
