@@ -1135,10 +1135,11 @@ CI runs *those same tasks*. There is no CI-only command.
 | `ansible-playbook --syntax-check` for every playbook
 
 | `invoke check [--tags …]`
-| `--check --diff` dry run against the local host
+| `--check --diff` dry run against the local host; asks for the sudo
+  password, because tasks that need root escalate in check mode too
 
 | `invoke apply [--tags …]`
-| Provision this machine for real
+| Provision this machine for real; asks for the sudo password
 
 | `invoke converge [--ubuntu 24.04]`
 | Full converge + re-converge in a throwaway Ubuntu container, 26.04 unless
@@ -1177,8 +1178,14 @@ to end.
 
 Invoke was chosen over `make` because these tasks are Python: they validate
 arguments, look up pins and checksums, and assemble command lines
-conditionally. Expressing that in a Makefile means shell inside recipes
-with no way to test it; in `tasks.py` it is ordinary code that `ruff` checks.
+conditionally. Expressing that in a Makefile means shell inside recipes with
+no way to test it; in `tasks.py` it is ordinary code that `ruff` checks.
+
+`check` and `apply` are the exception to running everything through
+Invoke's `c.run`. They start `ansible-playbook` attached to the terminal
+directly: Invoke relays the terminal through a pty of its own, and Ansible's
+sudo password prompt behind that relay loses the first keystroke, echoes the
+rest and never sees Enter.
 
 [#whitespace]
 === Whitespace and indentation

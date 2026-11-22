@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import shlex
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -139,14 +140,29 @@ def syntax(c: Context) -> None:
         c.run(f"ansible-playbook {playbook} --syntax-check", pty=True)
 
 
+def site_playbook(*args: str, tags: str = "") -> None:
+    """Run the site playbook attached to this terminal, asking for sudo.
+
+    Not through ``c.run``: Invoke relays the terminal through a pty of its
+    own, and Ansible's password prompt behind that relay loses the first
+    keystroke, echoes the rest and never sees Enter.  Started directly, the
+    playbook talks to the terminal itself, as it would from a shell.
+    """
+    cmd = ["ansible-playbook", "playbooks/site.yml", "--ask-become-pass"]
+    cmd += [*args, *(["--tags", tags] if tags else [])]
+    result = subprocess.run(cmd, cwd=ROOT, check=False)
+    if result.returncode != 0:
+        raise Exit(code=result.returncode)
+
+
 @task(help={"tags": "Comma separated list of tags to limit the run to."})
 def check(c: Context, tags: str = "") -> None:
-    """Dry-run the site playbook against this machine."""
-    limit = f" --tags {tags}" if tags else ""
-    c.run(
-        f"ansible-playbook playbooks/site.yml --check --diff{limit}",
-        pty=True,
-    )
+    """Dry-run the site playbook against this machine.
+
+    Asks for the sudo password like ``apply``: tasks that need root
+    escalate in check mode too.
+    """
+    site_playbook("--check", "--diff", tags=tags)
 
 
 @task(help={"tags": "Comma separated list of tags to limit the run to."})
@@ -157,11 +173,7 @@ def apply(c: Context, tags: str = "") -> None:
     sudo password and uses it per task, and the docker and kvm roles add
     the account that runs it to their groups.
     """
-    limit = f" --tags {tags}" if tags else ""
-    c.run(
-        f"ansible-playbook playbooks/site.yml --ask-become-pass{limit}",
-        pty=True,
-    )
+    site_playbook(tags=tags)
 
 
 @task(
