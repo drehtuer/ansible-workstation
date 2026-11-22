@@ -33,6 +33,12 @@
     enabled: false,
   },
 
+  // Off by default in Renovate.  Only pre-commit-hooks is pinned there;
+  // ruff and yamllint run from uv.lock.
+  'pre-commit': {
+    enabled: true,
+  },
+
   packageRules: [
     {
       // Only the lock file moves; the ranges in pyproject.toml are

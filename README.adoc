@@ -1304,7 +1304,10 @@ uv run pre-commit install
 ----
 
 Hooks: the vault guard, `detect-private-key`, `ruff`, `ruff-format`, `yamllint`,
-and the usual whitespace fixers.
+and the usual whitespace fixers. `pre-commit` itself is a dev dependency, and
+the `ruff` and `yamllint` hooks call `uv run`, so they use the versions locked
+in `uv.lock` — the same ones as `invoke lint` and CI — rather than a second
+copy pinned in `.pre-commit-config.yaml`.
 
 [#pins]
 === Keeping pins current
@@ -1324,6 +1327,11 @@ one like any other change.
 | `package-lock.json`, GitHub Actions, devcontainer features, the node and
   ruby versions in the workflows
 | natively
+
+| `.pre-commit-config.yaml`
+| natively, once enabled — Renovate leaves that manager off by default.
+  Only `pre-commit-hooks` is pinned there; the `ruff` and `yamllint` hooks
+  run from `uv.lock`
 
 | `nodejs_global_packages`
 | a custom rule for the `name` / `version` line pair
