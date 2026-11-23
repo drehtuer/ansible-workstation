@@ -12,7 +12,7 @@
     // It is a documentation dependency only -- nothing provisioned by the
     // playbooks needs it.
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
+      "version": "26"
     }
   },
   "mounts": [
