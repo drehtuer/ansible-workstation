@@ -51,20 +51,20 @@ jobs:
       # any other workflow run could otherwise reach the released site.
       - name: Install uv
         # yamllint disable-line rule:line-length
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
 
       # yamllint disable-line rule:line-length
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version: "26"
           package-manager-cache: false
 
       # yamllint disable-line rule:line-length
       - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
-          ruby-version: "3.4"
+          ruby-version: "4.0"
 
       # kramdoc converts the Markdown pages during the site build.
       - run: gem install kramdown-asciidoc -v 2.1.1
@@ -74,7 +74,7 @@ jobs:
       # yamllint disable-line rule:line-length
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       # yamllint disable-line rule:line-length
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/site
 
@@ -90,4 +90,4 @@ jobs:
     steps:
       - id: deployment
         # yamllint disable-line rule:line-length
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
