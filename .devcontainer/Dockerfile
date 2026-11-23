@@ -15,7 +15,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # drift.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ruby-full \
-    && gem install --no-document asciidoctor -v 2.0.23 \
+    && gem install --no-document asciidoctor -v 2.0.26 \
     && gem install --no-document kramdown-asciidoc -v 2.1.1 \
     && rm -rf /var/lib/apt/lists/*
 
